@@ -2,24 +2,35 @@
 
 import { useState } from 'react';
 import { GERMAN_CITIES } from '@/lib/cities';
+import { GERMAN_STATES } from '@/lib/states';
 import { BUSINESS_CATEGORIES } from '@/lib/categories';
-import { SearchIcon, LocationIcon, LoaderIcon } from './icons';
+import { SearchIcon, LoaderIcon } from './icons';
 
 interface Props {
-  onSearch: (category: string, city: string, radius: number, source: 'google' | 'osm') => void;
+  onSearch: (category: string, location: string, radius: number, source: 'google' | 'osm') => void;
   loading: boolean;
 }
 
 export default function SearchForm({ onSearch, loading }: Props) {
   const [category, setCategory] = useState('');
-  const [city, setCity] = useState('');
-  const [source, setSource] = useState<'google' | 'osm'>('google');
+  const [location, setLocation] = useState('');
+  const [source, setSource] = useState<'google' | 'osm'>('osm');
   const [radius, setRadius] = useState(5);
+
+  const isStateOrAll = location === '__ALL__' || location.startsWith('state:');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!category || !city) return;
-    onSearch(category, city, radius, source);
+    if (!category || !location) return;
+    onSearch(category, location, radius, source);
+  };
+
+  // Reset location when switching source if current selection is OSM-only
+  const handleSourceChange = (val: 'google' | 'osm') => {
+    setSource(val);
+    if (val === 'google' && (location === '__ALL__' || location.startsWith('state:'))) {
+      setLocation('');
+    }
   };
 
   const inputBase: React.CSSProperties = {
@@ -35,6 +46,8 @@ export default function SearchForm({ onSearch, loading }: Props) {
     WebkitAppearance: 'none' as const,
   };
 
+  const dropdownArrow = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`;
+
   return (
     <form onSubmit={handleSubmit} style={{ backgroundColor: '#0d1f35', border: '1px solid #1e3a5f', borderRadius: '16px', padding: '20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
@@ -49,13 +62,13 @@ export default function SearchForm({ onSearch, loading }: Props) {
       {/* Source toggle */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
         {([
-          { val: 'google' as const, label: 'Google Places', sub: 'Phone numbers + ratings' },
-          { val: 'osm' as const,    label: 'OpenStreetMap', sub: 'Free · no API key' },
+          { val: 'osm' as const,    label: 'OpenStreetMap', sub: 'Free · all of Germany' },
+          { val: 'google' as const, label: 'Google Places',  sub: 'Phone numbers + ratings' },
         ]).map(({ val, label, sub }) => (
           <button
             key={val}
             type="button"
-            onClick={() => setSource(val)}
+            onClick={() => handleSourceChange(val)}
             style={{
               flex: 1,
               backgroundColor: source === val ? '#1e3a5f' : '#0f172a',
@@ -87,7 +100,7 @@ export default function SearchForm({ onSearch, loading }: Props) {
             required
             style={{
               ...inputBase,
-              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+              backgroundImage: dropdownArrow,
               backgroundRepeat: 'no-repeat',
               backgroundPosition: 'right 14px center',
               paddingRight: '44px',
@@ -100,68 +113,97 @@ export default function SearchForm({ onSearch, loading }: Props) {
           </select>
         </div>
 
-        {/* City */}
+        {/* Location */}
         <div>
           <label style={{ display: 'block', color: '#64748b', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
-            City
+            Location
           </label>
           <div style={{ position: 'relative' }}>
-            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" /></svg>
+            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
             <select
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
               required
               style={{
                 ...inputBase,
                 paddingLeft: '40px',
-                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                backgroundImage: dropdownArrow,
                 backgroundRepeat: 'no-repeat',
                 backgroundPosition: 'right 14px center',
                 paddingRight: '44px',
               }}
             >
-              <option value="">Select city...</option>
-              {GERMAN_CITIES.sort((a, b) => a.name.localeCompare(b.name)).map((c) => (
-                <option key={c.name} value={c.name}>{c.name} ({c.state})</option>
-              ))}
+              <option value="">Select location...</option>
+
+              {source === 'osm' && (
+                <optgroup label="Whole Germany">
+                  <option value="__ALL__">All of Germany — all 16 Bundesländer</option>
+                </optgroup>
+              )}
+
+              {source === 'osm' && (
+                <optgroup label="By State (Bundesland)">
+                  {GERMAN_STATES.map((s) => (
+                    <option key={s.osmName} value={`state:${s.osmName}`}>{s.name}</option>
+                  ))}
+                </optgroup>
+              )}
+
+              <optgroup label="By City">
+                {GERMAN_CITIES.sort((a, b) => a.name.localeCompare(b.name)).map((c) => (
+                  <option key={c.name} value={c.name}>{c.name} ({c.state})</option>
+                ))}
+              </optgroup>
             </select>
           </div>
+
+          {location === '__ALL__' && (
+            <p style={{ color: '#3b82f6', fontSize: '11px', marginTop: '6px', lineHeight: 1.4 }}>
+              Scans all 16 Bundesländer one by one — results appear as each state completes. May take 5–10 min.
+            </p>
+          )}
         </div>
 
-        {/* Radius */}
-        <div>
-          <label style={{ display: 'block', color: '#64748b', fontSize: '12px', fontWeight: 600, marginBottom: '10px' }}>
-            Radius: <span style={{ color: '#3b82f6', fontWeight: 700 }}>{radius} km</span>
-          </label>
-          <input
-            type="range"
-            min={1}
-            max={50}
-            step={1}
-            value={radius}
-            onChange={(e) => setRadius(Number(e.target.value))}
-            style={{ width: '100%', cursor: 'pointer' }}
-          />
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
-            <span style={{ color: '#475569', fontSize: '11px' }}>1 km</span>
-            <span style={{ color: '#475569', fontSize: '11px' }}>50 km</span>
+        {/* Radius — hidden for state/whole-Germany queries */}
+        {!isStateOrAll && (
+          <div>
+            <label style={{ display: 'block', color: '#64748b', fontSize: '12px', fontWeight: 600, marginBottom: '10px' }}>
+              Radius: <span style={{ color: '#3b82f6', fontWeight: 700 }}>{radius} km</span>
+            </label>
+            <input
+              type="range"
+              min={1}
+              max={50}
+              step={1}
+              value={radius}
+              onChange={(e) => setRadius(Number(e.target.value))}
+              style={{ width: '100%', cursor: 'pointer' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+              <span style={{ color: '#475569', fontSize: '11px' }}>1 km</span>
+              <span style={{ color: '#475569', fontSize: '11px' }}>50 km</span>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Submit */}
         <button
           type="submit"
-          disabled={loading || !category || !city}
+          disabled={loading || !category || !location}
           style={{
             width: '100%',
-            backgroundColor: loading || !category || !city ? '#1e293b' : '#2563eb',
-            color: loading || !category || !city ? '#475569' : '#fff',
+            backgroundColor: loading || !category || !location ? '#1e293b' : '#2563eb',
+            color: loading || !category || !location ? '#475569' : '#fff',
             border: 'none',
             borderRadius: '12px',
             padding: '16px',
             fontSize: '16px',
             fontWeight: 700,
-            cursor: loading || !category || !city ? 'not-allowed' : 'pointer',
+            cursor: loading || !category || !location ? 'not-allowed' : 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -174,12 +216,12 @@ export default function SearchForm({ onSearch, loading }: Props) {
           {loading ? (
             <>
               <LoaderIcon size={18} />
-              Searching...
+              {location === '__ALL__' ? 'Scanning Germany...' : 'Searching...'}
             </>
           ) : (
             <>
               <SearchIcon size={18} />
-              Find Leads
+              {location === '__ALL__' ? 'Scan All of Germany' : 'Find Leads'}
             </>
           )}
         </button>

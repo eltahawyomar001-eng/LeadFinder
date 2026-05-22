@@ -50,13 +50,26 @@ interface OverpassResponse {
   elements: OverpassElement[];
 }
 
-function buildQuery(tags: Array<[string, string]>, lat: number, lng: number, radiusM: number): string {
+function buildRadiusQuery(tags: Array<[string, string]>, lat: number, lng: number, radiusM: number): string {
   const filters = tags.flatMap(([k, v]) => [
     `node["${k}"="${v}"](around:${radiusM},${lat},${lng});`,
     `way["${k}"="${v}"](around:${radiusM},${lat},${lng});`,
   ]);
-  // out body — returns tags for nodes; way centers come via >; out skel qt;
   return `[out:json][timeout:30];\n(\n  ${filters.join('\n  ')}\n);\nout body;`;
+}
+
+// State-level query — covers every village in the Bundesland, up to 2000 results
+function buildStateQuery(tags: Array<[string, string]>, osmStateName: string, limit = 2000): string {
+  const filters = tags.flatMap(([k, v]) => [
+    `node["${k}"="${v}"](area.state);`,
+    `way["${k}"="${v}"](area.state);`,
+  ]);
+  return (
+    `[out:json][timeout:48][maxsize:134217728];\n` +
+    `area["name"="${osmStateName}"]["admin_level"="4"]->.state;\n` +
+    `(\n  ${filters.join('\n  ')}\n);\n` +
+    `out body ${limit};`
+  );
 }
 
 function formatAddress(tags: Record<string, string>): string {
@@ -85,13 +98,15 @@ export async function searchOverpass(
   categoryQuery: string,
   lat: number,
   lng: number,
-  radiusMeters: number
+  radiusMeters: number,
+  stateName?: string   // if set, use state-area query instead of radius
 ): Promise<Lead[]> {
-  // Fall back to amenity=yes if no known tag
   const tags: Array<[string, string]> = OSM_TAGS[categoryQuery]
     ?? categoryQuery.split(' ').slice(0, 1).map((word): [string, string] => ['name', word]);
 
-  const query = buildQuery(tags, lat, lng, radiusMeters);
+  const query = stateName
+    ? buildStateQuery(tags, stateName)
+    : buildRadiusQuery(tags, lat, lng, radiusMeters);
   const body = new URLSearchParams({ data: query }).toString();
   const headers = {
     'Content-Type': 'application/x-www-form-urlencoded',
@@ -109,7 +124,7 @@ export async function searchOverpass(
   for (const url of endpoints) {
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 30_000);
+      const timer = setTimeout(() => controller.abort(), 58_000);
       res = await fetch(url, { method: 'POST', headers, body, signal: controller.signal });
       clearTimeout(timer);
       if (res.ok) break;

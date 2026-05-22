@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import type { Lead, SearchResponse } from '@/types';
+import { GERMAN_STATES } from '@/lib/states';
 import Header from '@/components/Header';
 import SearchForm from '@/components/SearchForm';
 import StatsBar from '@/components/StatsBar';
@@ -9,36 +10,136 @@ import ResultsTable from '@/components/ResultsTable';
 import ExportButton from '@/components/ExportButton';
 import { LoaderIcon } from '@/components/icons';
 
+interface ScanProgress {
+  current: number;
+  total: number;
+  stateName: string;
+}
+
 export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SearchResponse | null>(null);
   const [nextPageToken, setNextPageToken] = useState<string | undefined>(undefined);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [searchState, setSearchState] = useState<{ category: string; city: string; radius: number; source: 'google' | 'osm' } | null>(null);
+  const [searchState, setSearchState] = useState<{ category: string; location: string; radius: number; source: 'google' | 'osm' } | null>(null);
   const [mobileOnly, setMobileOnly] = useState(false);
+  const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null);
 
-  const fetchLeads = async (category: string, city: string, radius: number, source: 'google' | 'osm', pageToken?: string) => {
-    const endpoint = source === 'osm' ? '/api/overpass' : '/api/search';
-    const res = await fetch(endpoint, {
+  // ── helpers ──────────────────────────────────────────────────────────────
+
+  const fetchOsmState = async (category: string, stateName: string): Promise<SearchResponse> => {
+    const res = await fetch('/api/overpass', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category, stateName }),
+    });
+    if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'Overpass failed'); }
+    return res.json();
+  };
+
+  const fetchOsmCity = async (category: string, city: string, radius: number): Promise<SearchResponse> => {
+    const res = await fetch('/api/overpass', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category, city, radius }),
+    });
+    if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'Overpass failed'); }
+    return res.json();
+  };
+
+  const fetchGoogle = async (category: string, city: string, radius: number, pageToken?: string): Promise<SearchResponse> => {
+    const res = await fetch('/api/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ category, city, radius, pageToken }),
     });
     if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'Search failed'); }
-    return res.json() as Promise<SearchResponse>;
+    return res.json();
   };
 
-  const handleSearch = async (category: string, city: string, radius: number, source: 'google' | 'osm') => {
+  // ── all-Germany sequential scan ───────────────────────────────────────────
+
+  const handleAllGermanyScan = async (category: string) => {
     setLoading(true);
     setError(null);
     setResult(null);
     setNextPageToken(undefined);
-    setSearchState({ category, city, radius, source });
+
+    const seenIds = new Set<string>();
+    let accLeads: Lead[] = [];
+    let accPhone = 0;
+    let accHighPriority = 0;
+
+    for (let i = 0; i < GERMAN_STATES.length; i++) {
+      const state = GERMAN_STATES[i];
+      setScanProgress({ current: i + 1, total: GERMAN_STATES.length, stateName: state.name });
+
+      try {
+        const data = await fetchOsmState(category, state.osmName);
+        const newLeads = data.leads.filter((l) => {
+          if (seenIds.has(l.place_id)) return false;
+          seenIds.add(l.place_id);
+          return true;
+        });
+        accLeads = [...accLeads, ...newLeads];
+        accPhone += newLeads.filter((l) => l.phone !== null).length;
+        accHighPriority += newLeads.filter((l) => l.weakness_score >= 6).length;
+
+        // Sort and update results after each state so user sees progress
+        const sorted = [...accLeads].sort((a, b) => b.weakness_score - a.weakness_score);
+        setResult({ leads: sorted, total: sorted.length, withPhone: accPhone, highPriority: accHighPriority });
+      } catch {
+        // Skip failed state and continue
+      }
+    }
+
+    setScanProgress(null);
+    setLoading(false);
+  };
+
+  // ── main search handler ───────────────────────────────────────────────────
+
+  const handleSearch = async (category: string, location: string, radius: number, source: 'google' | 'osm') => {
+    setSearchState({ category, location, radius, source });
+
+    // All-Germany sequential scan (OSM only)
+    if (location === '__ALL__') {
+      await handleAllGermanyScan(category);
+      return;
+    }
+
+    // Single-state scan (OSM only)
+    if (location.startsWith('state:')) {
+      const stateName = location.slice(6);
+      setLoading(true);
+      setError(null);
+      setResult(null);
+      setNextPageToken(undefined);
+      setScanProgress({ current: 1, total: 1, stateName });
+      try {
+        const data = await fetchOsmState(category, stateName);
+        setResult(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Something went wrong');
+      } finally {
+        setScanProgress(null);
+        setLoading(false);
+      }
+      return;
+    }
+
+    // City-level search (Google or OSM)
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    setNextPageToken(undefined);
     try {
-      const data = await fetchLeads(category, city, radius, source);
+      const data = source === 'osm'
+        ? await fetchOsmCity(category, location, radius)
+        : await fetchGoogle(category, location, radius);
       setResult(data);
-      setNextPageToken(data.nextPageToken);
+      if (source === 'google') setNextPageToken(data.nextPageToken);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
@@ -47,10 +148,10 @@ export default function HomePage() {
   };
 
   const handleLoadMore = async () => {
-    if (!nextPageToken || !searchState) return;
+    if (!nextPageToken || !searchState || searchState.source !== 'google') return;
     setLoadingMore(true);
     try {
-      const data = await fetchLeads(searchState.category, searchState.city, searchState.radius, searchState.source, nextPageToken);
+      const data = await fetchGoogle(searchState.category, searchState.location, searchState.radius, nextPageToken);
       setResult((prev) => prev ? {
         ...data,
         leads: [...prev.leads, ...data.leads],
@@ -66,12 +167,18 @@ export default function HomePage() {
     }
   };
 
+  // ── derived state ─────────────────────────────────────────────────────────
+
   const allLeads: Lead[] = result?.leads ?? [];
   const filteredLeads = useMemo(
     () => mobileOnly ? allLeads.filter((l) => l.is_mobile) : allLeads,
     [allLeads, mobileOnly]
   );
   const mobileCount = allLeads.filter((l) => l.is_mobile).length;
+
+  const isGermanyScan = searchState?.location === '__ALL__';
+
+  // ── render ────────────────────────────────────────────────────────────────
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#020609' }}>
@@ -93,16 +200,65 @@ export default function HomePage() {
           <SearchForm onSearch={handleSearch} loading={loading} />
         </div>
 
-        {/* Loading */}
+        {/* Loading / scan progress */}
         {loading && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '60px 0', color: '#64748b' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '40px 0' }}>
             <LoaderIcon size={32} className="text-blue-400" />
-            <p style={{ fontSize: '14px' }}>
-              {searchState?.source === 'osm'
-                ? 'Querying OpenStreetMap + scraping emails...'
-                : 'Fetching businesses, phones + scraping emails...'}
-            </p>
-            <p style={{ fontSize: '12px', color: '#334155' }}>Takes 15–30 seconds</p>
+
+            {isGermanyScan && scanProgress ? (
+              <>
+                <p style={{ fontSize: '15px', fontWeight: 700, color: '#93c5fd' }}>
+                  Scanning {scanProgress.stateName}...
+                </p>
+
+                {/* Progress bar */}
+                <div style={{ width: '100%', maxWidth: '400px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <span style={{ color: '#64748b', fontSize: '12px' }}>
+                      {scanProgress.current} / {scanProgress.total} Bundesländer
+                    </span>
+                    {result && (
+                      <span style={{ color: '#34d399', fontSize: '12px', fontWeight: 600 }}>
+                        {result.total} leads found
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ height: '6px', backgroundColor: '#1e293b', borderRadius: '999px', overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${(scanProgress.current / scanProgress.total) * 100}%`,
+                      backgroundColor: '#3b82f6',
+                      borderRadius: '999px',
+                      transition: 'width 0.4s ease',
+                    }} />
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '10px' }}>
+                    {GERMAN_STATES.map((s, idx) => (
+                      <span key={s.osmName} style={{
+                        fontSize: '10px',
+                        padding: '2px 6px',
+                        borderRadius: '999px',
+                        backgroundColor: idx < scanProgress.current - 1 ? '#052e16' : idx === scanProgress.current - 1 ? '#1e3a5f' : '#0f172a',
+                        border: `1px solid ${idx < scanProgress.current - 1 ? '#166534' : idx === scanProgress.current - 1 ? '#3b82f6' : '#1e293b'}`,
+                        color: idx < scanProgress.current - 1 ? '#4ade80' : idx === scanProgress.current - 1 ? '#93c5fd' : '#334155',
+                      }}>
+                        {s.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <p style={{ fontSize: '12px', color: '#334155' }}>Results appear as each state completes</p>
+              </>
+            ) : (
+              <>
+                <p style={{ fontSize: '14px', color: '#64748b' }}>
+                  {searchState?.source === 'osm'
+                    ? 'Querying OpenStreetMap + scraping emails...'
+                    : 'Fetching businesses, phones + scraping emails...'}
+                </p>
+                <p style={{ fontSize: '12px', color: '#334155' }}>Takes 15–30 seconds</p>
+              </>
+            )}
           </div>
         )}
 
@@ -121,7 +277,7 @@ export default function HomePage() {
         )}
 
         {/* Results */}
-        {result && !loading && (
+        {result && result.total > 0 && (
           <div className="fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <StatsBar data={result} />
 
@@ -129,7 +285,7 @@ export default function HomePage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                 <span style={{ color: '#475569', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                  Results — sorted by priority
+                  Results — sorted by priority {loading && scanProgress ? `(${scanProgress.current}/${scanProgress.total} states)` : ''}
                 </span>
                 {/* Mobile filter toggle */}
                 <button
@@ -171,7 +327,7 @@ export default function HomePage() {
               <ResultsTable leads={filteredLeads} />
             )}
 
-            {nextPageToken && (
+            {nextPageToken && !loading && (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', paddingTop: '8px' }}>
                 <button
                   onClick={handleLoadMore}
