@@ -40,4 +40,11 @@ export interface GermanCity {
   state: string;
 }
 
+export interface GermanState {
+  name: string;        // display name
+  osmName: string;     // exact OSM "name" tag for area query
+  lat: number;         // center for map display
+  lng: number;
+}
+
 export type Priority = 'high' | 'medium' | 'low';
