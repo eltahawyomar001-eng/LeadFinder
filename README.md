@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LeadFinder.de
 
-## Getting Started
+A Next.js lead generation tool for finding local German businesses with weak online presence and generating personalized WhatsApp outreach messages.
 
-First, run the development server:
+## What it does
+
+- Searches real businesses across 50+ German cities via **Google Places API**
+- Scores each business by "weakness" (no website, few reviews, low rating)
+- Sorts results by **priority** (High / Medium / Low)
+- Generates a personalized **German-language WhatsApp message** per lead
+- Shows phone numbers formatted for one-click WhatsApp contact
+- Exports all leads to **CSV** (name, phone, WhatsApp link, address, website, score, message)
+
+## Tech stack
+
+- **Next.js 16** (App Router)
+- **TypeScript**
+- **Tailwind CSS v4**
+- **Google Places API** (Text Search + Place Details)
+- No emojis — all SVG icons
+
+## Setup
+
+1. Clone the repo and install dependencies:
+
+```bash
+git clone https://github.com/eltahawyomar001-eng/LeadFinder
+cd LeadFinder
+npm install
+```
+
+2. Copy the environment file and add your Google Places API key:
+
+```bash
+cp .env.local.example .env.local
+```
+
+Get a free key at [Google Cloud Console](https://console.cloud.google.com/apis/library/places-backend.googleapis.com).
+Enable **Places API** — the free tier gives $200/month credit (~11,000 searches, more than enough for daily use).
+
+3. Run the dev server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## How to use
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Select a **business category** (Restaurant, Friseur, Zahnarzt, etc.)
+2. Select a **German city** from 50+ options
+3. Set the **search radius** (1–50 km)
+4. Click **Find Leads**
+5. Results appear ranked by priority — click the message icon to view/copy the WhatsApp pitch
+6. Click **Export CSV** to download all leads
 
-## Learn More
+## Scoring logic
 
-To learn more about Next.js, take a look at the following resources:
+| Signal | Points |
+|---|---|
+| No website | +5 |
+| Fewer than 5 reviews | +3 |
+| 5–19 reviews | +2 |
+| Rating below 3.5 | +2 |
+| Rating 3.5–4.0 | +1 |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Score 6+: High Priority — Score 3–5: Medium — Score 0–2: Low
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deploy
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Deploy instantly to Vercel. Add `GOOGLE_PLACES_API_KEY` as an environment variable in the Vercel dashboard.
