@@ -147,7 +147,7 @@ export default function HomePage() {
             )}
 
             {nextPageToken && (
-              <div className="flex justify-center pt-2">
+              <div className="flex flex-col items-center gap-2 pt-2">
                 <button
                   onClick={handleLoadMore}
                   disabled={loadingMore}
@@ -156,12 +156,15 @@ export default function HomePage() {
                   {loadingMore ? (
                     <>
                       <LoaderIcon size={16} />
-                      Loading more...
+                      Loading next 20...
                     </>
                   ) : (
-                    'Load more results'
+                    'Load next 20 results'
                   )}
                 </button>
+                <p className="text-xs text-slate-600">
+                  Google Places returns 20 per page — up to 60 total per search
+                </p>
               </div>
             )}
           </div>
