@@ -51,4 +51,13 @@ export const GERMAN_CITIES: GermanCity[] = [
   { name: 'Solingen', lat: 51.1657, lng: 7.0852, state: 'NRW' },
   { name: 'Heidelberg', lat: 49.3988, lng: 8.6724, state: 'Baden-Württemberg' },
   { name: 'Darmstadt', lat: 49.8728, lng: 8.6512, state: 'Hessen' },
+  { name: 'Fulda', lat: 50.5558, lng: 9.6808, state: 'Hessen' },
+  { name: 'Marburg', lat: 50.8021, lng: 8.7712, state: 'Hessen' },
+  { name: 'Gießen', lat: 50.5840, lng: 8.6780, state: 'Hessen' },
+  { name: 'Göttingen', lat: 51.5413, lng: 9.9158, state: 'Niedersachsen' },
+  { name: 'Würzburg', lat: 49.7913, lng: 9.9534, state: 'Bayern' },
+  { name: 'Regensburg', lat: 49.0134, lng: 12.1016, state: 'Bayern' },
+  { name: 'Ingolstadt', lat: 48.7630, lng: 11.4250, state: 'Bayern' },
+  { name: 'Ulm', lat: 48.3984, lng: 9.9922, state: 'Baden-Württemberg' },
+  { name: 'Trier', lat: 49.7490, lng: 6.6371, state: 'Rheinland-Pfalz' },
 ];
