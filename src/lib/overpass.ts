@@ -55,7 +55,8 @@ function buildQuery(tags: Array<[string, string]>, lat: number, lng: number, rad
     `node["${k}"="${v}"](around:${radiusM},${lat},${lng});`,
     `way["${k}"="${v}"](around:${radiusM},${lat},${lng});`,
   ]);
-  return `[out:json][timeout:30];\n(\n  ${filters.join('\n  ')}\n);\nout center body;`;
+  // out body — returns tags for nodes; way centers come via >; out skel qt;
+  return `[out:json][timeout:30];\n(\n  ${filters.join('\n  ')}\n);\nout body;`;
 }
 
 function formatAddress(tags: Record<string, string>): string {
@@ -91,15 +92,35 @@ export async function searchOverpass(
     ?? categoryQuery.split(' ').slice(0, 1).map((word): [string, string] => ['name', word]);
 
   const query = buildQuery(tags, lat, lng, radiusMeters);
+  const body = new URLSearchParams({ data: query }).toString();
+  const headers = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+    'Accept': 'application/json',
+    'User-Agent': 'LeadFinderApp/1.0',
+  };
 
-  const res = await fetch('https://overpass-api.de/api/interpreter', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `data=${encodeURIComponent(query)}`,
-    signal: AbortSignal.timeout(35_000),
-  });
+  // Try primary then mirror
+  const endpoints = [
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+  ];
 
-  if (!res.ok) throw new Error(`Overpass error: ${res.status}`);
+  let res: Response | null = null;
+  for (const url of endpoints) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 30_000);
+      res = await fetch(url, { method: 'POST', headers, body, signal: controller.signal });
+      clearTimeout(timer);
+      if (res.ok) break;
+    } catch {
+      // try next mirror
+    }
+  }
+
+  if (!res || !res.ok) {
+    throw new Error(`Overpass error: ${res?.status ?? 'all mirrors failed'}`);
+  }
 
   const data: OverpassResponse = await res.json();
 
