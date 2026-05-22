@@ -18,6 +18,11 @@ export default function MessageModal({ lead, onClose }: Props) {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Pre-fill WhatsApp with the message so Omar just hits send
+  const whatsappWithMessage = lead.whatsapp_link
+    ? `${lead.whatsapp_link}?text=${encodeURIComponent(lead.whatsapp_message)}`
+    : null;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
@@ -27,9 +32,12 @@ export default function MessageModal({ lead, onClose }: Props) {
         <div className="flex items-center justify-between p-5 border-b border-slate-800">
           <div>
             <p className="text-xs text-slate-500 font-medium uppercase tracking-widest mb-1">
-              WhatsApp Outreach
+              Your WhatsApp Pitch
             </p>
             <h3 className="text-white font-semibold">{lead.name}</h3>
+            {lead.phone && (
+              <p className="text-xs text-slate-500 mt-0.5 font-mono">{lead.phone}</p>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -43,19 +51,21 @@ export default function MessageModal({ lead, onClose }: Props) {
         </div>
 
         <div className="p-5">
-          <p className="text-xs text-slate-500 mb-2">Personalized message (German)</p>
+          <p className="text-xs text-slate-500 mb-2">
+            Personalized in German — from Omar Rageh, ready to send
+          </p>
           <textarea
             readOnly
             value={lead.whatsapp_message}
-            rows={8}
-            className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-sm text-slate-200 resize-none font-mono leading-relaxed focus:outline-none"
+            rows={10}
+            className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-sm text-slate-200 resize-none leading-relaxed focus:outline-none"
           />
         </div>
 
         <div className="flex gap-3 p-5 pt-0">
           <button
             onClick={copy}
-            className="flex-1 flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white rounded-lg py-2.5 text-sm font-medium transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white rounded-lg py-2.5 text-sm font-medium transition-colors cursor-pointer"
           >
             {copied ? (
               <>
@@ -70,16 +80,20 @@ export default function MessageModal({ lead, onClose }: Props) {
             )}
           </button>
 
-          {lead.whatsapp_link && (
+          {whatsappWithMessage ? (
             <a
-              href={lead.whatsapp_link}
+              href={whatsappWithMessage}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1ebe5d] text-white rounded-lg py-2.5 text-sm font-medium transition-colors"
+              className="flex-1 flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1ebe5d] text-white rounded-lg py-2.5 text-sm font-semibold transition-colors"
             >
               <WhatsAppIcon size={16} />
-              Open WhatsApp
+              Send on WhatsApp
             </a>
+          ) : (
+            <div className="flex-1 flex items-center justify-center gap-2 bg-slate-800 border border-slate-700 text-slate-600 rounded-lg py-2.5 text-sm">
+              No phone number
+            </div>
           )}
         </div>
       </div>

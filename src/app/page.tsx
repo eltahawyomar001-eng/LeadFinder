@@ -96,8 +96,9 @@ export default function HomePage() {
           <h2 className="text-2xl font-bold text-white tracking-tight">
             Find Leads Across Germany
           </h2>
-          <p className="text-slate-500 text-sm">
-            Discover local businesses with weak online presence. Reach out via WhatsApp with a personalized pitch.
+          <p className="text-slate-500 text-sm max-w-2xl">
+            I built this tool to find local businesses that need a better website — and reach them directly on WhatsApp with a personalized message from me.
+            Each lead is scored by how urgently they need help: no website, few reviews, or a low rating.
           </p>
         </div>
 
@@ -168,9 +169,23 @@ export default function HomePage() {
       </main>
 
       <footer className="border-t border-slate-800/60 py-4 px-6">
-        <p className="text-center text-xs text-slate-700">
-          LeadFinder.de — built by Omar Eltahawy · Powered by Google Places API
-        </p>
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+          <p className="text-xs text-slate-700">
+            Built by{' '}
+            <a href="https://omar-portfolio.xyz" target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-white transition-colors">
+              Omar Rageh
+            </a>
+            {' '}· Full-Stack Developer &amp; Automation Builder · Fulda, Germany
+          </p>
+          <div className="flex items-center gap-4">
+            <a href="mailto:omarragehfulda@gmail.com" className="text-xs text-slate-700 hover:text-slate-400 transition-colors">
+              omarragehfulda@gmail.com
+            </a>
+            <a href="https://wa.me/4917655093674" target="_blank" rel="noopener noreferrer" className="text-xs text-slate-700 hover:text-[#25D366] transition-colors">
+              +49 176 55093674
+            </a>
+          </div>
+        </div>
       </footer>
     </div>
   );
