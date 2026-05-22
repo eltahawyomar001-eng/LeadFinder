@@ -65,8 +65,10 @@ export default function LeadCard({ lead, index, onViewMessage, onEmailFound }: P
     ? `mailto:${lead.email}?subject=${encodeURIComponent(lead.email_subject ?? '')}&body=${encodeURIComponent(lead.email_body ?? '')}`
     : `mailto:?subject=${encodeURIComponent(lead.email_subject ?? '')}&body=${encodeURIComponent(lead.email_body ?? '')}`;
 
-  const showEmailRow = lead.email || (!lead.is_mobile && lead.email_body);
-  const showFindEmailBtn = !lead.email && lead.website && !lead.is_mobile;
+  // Show email send button only when we actually have an email address
+  const showEmailRow = !!lead.email;
+  // Show "find email" button when the lead has a website but no email yet
+  const showFindEmailBtn = !lead.email && !!lead.website;
 
   return (
     <div style={{
@@ -269,7 +271,7 @@ export default function LeadCard({ lead, index, onViewMessage, onEmailFound }: P
               <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
               <polyline points="22,6 12,13 2,6" />
             </svg>
-            {lead.email ? `Email: ${lead.email}` : 'Send email pitch (no email found — add manually)'}
+            {`Email: ${lead.email}`}
           </a>
         )}
 
