@@ -1,5 +1,5 @@
 import type { Lead } from '@/types';
-import { formatPhoneForWhatsApp, generateWhatsAppMessage } from './whatsapp';
+import { formatPhoneForWhatsApp, generateWhatsAppMessage, isMobileNumber } from './whatsapp';
 import { scoreWeakness } from './scoring';
 
 const BASE = 'https://maps.googleapis.com/maps/api/place';
@@ -118,6 +118,7 @@ export async function buildLeads(
       weakness_score: score,
       weakness_reasons: reasons,
       whatsapp_message,
+      is_mobile: phone ? isMobileNumber(phone) : false,
     };
   });
 }

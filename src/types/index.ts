@@ -12,6 +12,7 @@ export interface Lead {
   weakness_score: number;
   weakness_reasons: string[];
   whatsapp_message: string;
+  is_mobile: boolean;
 }
 
 export interface SearchRequest {

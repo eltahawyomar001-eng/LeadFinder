@@ -1,3 +1,14 @@
+// German mobile prefixes: 015x, 016x, 017x — these are on WhatsApp
+// Landlines (030, 069, 089 etc.) rarely have WhatsApp
+export function isMobileNumber(phone: string): boolean {
+  if (!phone) return false;
+  let local = phone.replace(/[\s\-\(\)\/\.]/g, '');
+  if (local.startsWith('+49')) local = '0' + local.slice(3);
+  else if (local.startsWith('0049')) local = '0' + local.slice(4);
+  else if (local.startsWith('49') && local.length >= 11) local = '0' + local.slice(2);
+  return /^0(15[0-9]|16[0-9]|17[0-9])/.test(local);
+}
+
 export function formatPhoneForWhatsApp(phone: string): string | null {
   if (!phone) return null;
   let cleaned = phone.replace(/[\s\-\(\)\/\.]/g, '');
