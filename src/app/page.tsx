@@ -15,11 +15,12 @@ export default function HomePage() {
   const [result, setResult] = useState<SearchResponse | null>(null);
   const [nextPageToken, setNextPageToken] = useState<string | undefined>(undefined);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [searchState, setSearchState] = useState<{ category: string; city: string; radius: number } | null>(null);
+  const [searchState, setSearchState] = useState<{ category: string; city: string; radius: number; source: 'google' | 'osm' } | null>(null);
   const [mobileOnly, setMobileOnly] = useState(false);
 
-  const fetchLeads = async (category: string, city: string, radius: number, pageToken?: string) => {
-    const res = await fetch('/api/search', {
+  const fetchLeads = async (category: string, city: string, radius: number, source: 'google' | 'osm', pageToken?: string) => {
+    const endpoint = source === 'osm' ? '/api/overpass' : '/api/search';
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ category, city, radius, pageToken }),
@@ -28,14 +29,14 @@ export default function HomePage() {
     return res.json() as Promise<SearchResponse>;
   };
 
-  const handleSearch = async (category: string, city: string, radius: number) => {
+  const handleSearch = async (category: string, city: string, radius: number, source: 'google' | 'osm') => {
     setLoading(true);
     setError(null);
     setResult(null);
     setNextPageToken(undefined);
-    setSearchState({ category, city, radius });
+    setSearchState({ category, city, radius, source });
     try {
-      const data = await fetchLeads(category, city, radius);
+      const data = await fetchLeads(category, city, radius, source);
       setResult(data);
       setNextPageToken(data.nextPageToken);
     } catch (err) {
@@ -49,7 +50,7 @@ export default function HomePage() {
     if (!nextPageToken || !searchState) return;
     setLoadingMore(true);
     try {
-      const data = await fetchLeads(searchState.category, searchState.city, searchState.radius, nextPageToken);
+      const data = await fetchLeads(searchState.category, searchState.city, searchState.radius, searchState.source, nextPageToken);
       setResult((prev) => prev ? {
         ...data,
         leads: [...prev.leads, ...data.leads],
@@ -96,8 +97,12 @@ export default function HomePage() {
         {loading && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '60px 0', color: '#64748b' }}>
             <LoaderIcon size={32} className="text-blue-400" />
-            <p style={{ fontSize: '14px' }}>Fetching businesses and phone numbers...</p>
-            <p style={{ fontSize: '12px', color: '#334155' }}>Takes 10–20 seconds</p>
+            <p style={{ fontSize: '14px' }}>
+              {searchState?.source === 'osm'
+                ? 'Querying OpenStreetMap + scraping emails...'
+                : 'Fetching businesses, phones + scraping emails...'}
+            </p>
+            <p style={{ fontSize: '12px', color: '#334155' }}>Takes 15–30 seconds</p>
           </div>
         )}
 

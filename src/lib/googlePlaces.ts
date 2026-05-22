@@ -1,6 +1,7 @@
 import type { Lead } from '@/types';
-import { formatPhoneForWhatsApp, generateWhatsAppMessage, isMobileNumber } from './whatsapp';
+import { formatPhoneForWhatsApp, generateWhatsAppMessage, generateEmailPitch, isMobileNumber } from './whatsapp';
 import { scoreWeakness } from './scoring';
+import { scrapeEmailFromWebsite } from './scrapeEmail';
 
 const BASE = 'https://maps.googleapis.com/maps/api/place';
 const KEY = process.env.GOOGLE_PLACES_API_KEY!;
@@ -94,8 +95,14 @@ export async function buildLeads(
     results.map((r) => fetchPlaceDetails(r.place_id))
   );
 
+  // Scrape emails in parallel only for leads that have a website
+  const emails = await Promise.all(
+    details.map((d) => d.website ? scrapeEmailFromWebsite(d.website) : Promise.resolve(null))
+  );
+
   return results.map((r, i) => {
     const { phone, website } = details[i];
+    const email = emails[i];
     const { score, reasons } = scoreWeakness(
       website,
       r.rating ?? null,
@@ -103,6 +110,7 @@ export async function buildLeads(
     );
     const whatsapp_link = phone ? formatPhoneForWhatsApp(phone) : null;
     const whatsapp_message = generateWhatsAppMessage(r.name, reasons);
+    const emailPitch = generateEmailPitch(r.name, reasons);
 
     return {
       place_id: r.place_id,
@@ -119,6 +127,9 @@ export async function buildLeads(
       weakness_reasons: reasons,
       whatsapp_message,
       is_mobile: phone ? isMobileNumber(phone) : false,
+      email: email ?? null,
+      email_subject: emailPitch.subject,
+      email_body: emailPitch.body,
     };
   });
 }

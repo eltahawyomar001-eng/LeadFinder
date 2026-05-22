@@ -159,68 +159,74 @@ export default function LeadCard({ lead, index, onViewMessage }: Props) {
       <div style={{ height: '1px', backgroundColor: '#1e293b' }} />
 
       {/* Actions */}
-      <div style={{ padding: '12px 16px', display: 'flex', gap: '10px' }}>
-        {whatsappWithMessage ? (
+      <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {whatsappWithMessage ? (
+            <a
+              href={whatsappWithMessage}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                flex: 1,
+                backgroundColor: lead.is_mobile ? '#15803d' : 'rgba(21,128,61,0.35)',
+                color: '#fff',
+                borderRadius: '12px',
+                padding: '13px',
+                fontSize: '14px',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '7px',
+                textDecoration: 'none',
+              }}
+            >
+              <WhatsAppIcon size={17} />
+              {lead.is_mobile ? 'WhatsApp' : 'Try WA'}
+            </a>
+          ) : (
+            <div style={{ flex: 1, backgroundColor: '#1e293b', border: '1px solid #334155', color: '#475569', borderRadius: '12px', padding: '13px', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              No phone
+            </div>
+          )}
+          <button
+            onClick={() => onViewMessage(lead)}
+            style={{ flex: 1, backgroundColor: '#1e293b', border: '1px solid #334155', color: '#93c5fd', borderRadius: '12px', padding: '13px', fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', cursor: 'pointer' }}
+          >
+            <MessageIcon size={16} />
+            Pitch
+          </button>
+        </div>
+
+        {/* Email row — shown when email found OR landline (no WhatsApp) */}
+        {(lead.email || (!lead.is_mobile && lead.email_body)) && (
           <a
-            href={whatsappWithMessage}
-            target="_blank"
-            rel="noopener noreferrer"
+            href={lead.email
+              ? `mailto:${lead.email}?subject=${encodeURIComponent(lead.email_subject ?? '')}&body=${encodeURIComponent(lead.email_body ?? '')}`
+              : `mailto:?subject=${encodeURIComponent(lead.email_subject ?? '')}&body=${encodeURIComponent(lead.email_body ?? '')}`
+            }
             style={{
-              flex: 1,
-              backgroundColor: lead.is_mobile ? '#15803d' : '#166534',
-              color: '#fff',
+              width: '100%',
+              backgroundColor: lead.email ? '#1e3a2e' : '#1a1a2e',
+              border: `1px solid ${lead.email ? '#166534' : '#2d2d5e'}`,
+              color: lead.email ? '#4ade80' : '#818cf8',
               borderRadius: '12px',
-              padding: '13px',
-              fontSize: '14px',
-              fontWeight: 700,
+              padding: '11px 14px',
+              fontSize: '13px',
+              fontWeight: 600,
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              gap: '7px',
+              gap: '8px',
               textDecoration: 'none',
-              opacity: lead.is_mobile ? 1 : 0.7,
             }}
           >
-            <WhatsAppIcon size={17} />
-            {lead.is_mobile ? 'Send on WhatsApp' : 'Try WhatsApp'}
+            <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+              <polyline points="22,6 12,13 2,6" />
+            </svg>
+            {lead.email ? `Email: ${lead.email}` : 'Send email pitch (landline lead)'}
           </a>
-        ) : (
-          <div style={{
-            flex: 1,
-            backgroundColor: '#1e293b',
-            border: '1px solid #334155',
-            color: '#475569',
-            borderRadius: '12px',
-            padding: '13px',
-            fontSize: '14px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-            No phone — skip
-          </div>
         )}
-        <button
-          onClick={() => onViewMessage(lead)}
-          style={{
-            flex: 1,
-            backgroundColor: '#1e293b',
-            border: '1px solid #334155',
-            color: '#93c5fd',
-            borderRadius: '12px',
-            padding: '13px',
-            fontSize: '14px',
-            fontWeight: 600,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '7px',
-            cursor: 'pointer',
-          }}
-        >
-          <MessageIcon size={16} />
-          View Pitch
-        </button>
       </div>
     </div>
   );

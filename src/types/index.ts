@@ -13,6 +13,9 @@ export interface Lead {
   weakness_reasons: string[];
   whatsapp_message: string;
   is_mobile: boolean;
+  email: string | null;
+  email_subject: string | null;
+  email_body: string | null;
 }
 
 export interface SearchRequest {

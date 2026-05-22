@@ -6,19 +6,20 @@ import { BUSINESS_CATEGORIES } from '@/lib/categories';
 import { SearchIcon, LocationIcon, LoaderIcon } from './icons';
 
 interface Props {
-  onSearch: (category: string, city: string, radius: number) => void;
+  onSearch: (category: string, city: string, radius: number, source: 'google' | 'osm') => void;
   loading: boolean;
 }
 
 export default function SearchForm({ onSearch, loading }: Props) {
   const [category, setCategory] = useState('');
   const [city, setCity] = useState('');
+  const [source, setSource] = useState<'google' | 'osm'>('google');
   const [radius, setRadius] = useState(5);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!category || !city) return;
-    onSearch(category, city, radius);
+    onSearch(category, city, radius, source);
   };
 
   const inputBase: React.CSSProperties = {
@@ -43,6 +44,35 @@ export default function SearchForm({ onSearch, loading }: Props) {
         <span style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
           Search Filters
         </span>
+      </div>
+
+      {/* Source toggle */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+        {([
+          { val: 'google' as const, label: 'Google Places', sub: 'Phone numbers + ratings' },
+          { val: 'osm' as const,    label: 'OpenStreetMap', sub: 'Free · no API key' },
+        ]).map(({ val, label, sub }) => (
+          <button
+            key={val}
+            type="button"
+            onClick={() => setSource(val)}
+            style={{
+              flex: 1,
+              backgroundColor: source === val ? '#1e3a5f' : '#0f172a',
+              border: `2px solid ${source === val ? '#3b82f6' : '#1e293b'}`,
+              borderRadius: '12px',
+              padding: '10px 12px',
+              cursor: 'pointer',
+              textAlign: 'left' as const,
+              minHeight: 'unset',
+              display: 'block',
+              transition: 'all 0.15s',
+            }}
+          >
+            <p style={{ color: source === val ? '#93c5fd' : '#64748b', fontSize: '13px', fontWeight: 700, margin: 0 }}>{label}</p>
+            <p style={{ color: source === val ? '#3b82f6' : '#334155', fontSize: '11px', margin: '2px 0 0' }}>{sub}</p>
+          </button>
+        ))}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>

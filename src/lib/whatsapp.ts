@@ -1,3 +1,70 @@
+export function generateEmailPitch(businessName: string, reasons: string[]): {
+  subject: string;
+  body: string;
+} {
+  const noWebsite = reasons.some((r) => r.includes('keine eigene Website'));
+  const fewReviews = reasons.some((r) => r.includes('Bewertungen'));
+
+  let body: string;
+
+  if (noWebsite) {
+    body =
+      `Sehr geehrte Damen und Herren,\n\n` +
+      `mein Name ist Omar Rageh – ich bin Full-Stack-Entwickler aus Fulda und spezialisiert auf ` +
+      `moderne Unternehmenswebsites mit Next.js, React und Tailwind CSS.\n\n` +
+      `Ich bin auf Ihr Unternehmen „${businessName}" aufmerksam geworden und habe festgestellt, ` +
+      `dass Sie noch keine eigene Website haben. In der heutigen Zeit verlieren Unternehmen ohne ` +
+      `Online-Präsenz täglich potenzielle Kunden, die gezielt im Internet nach Ihren Leistungen suchen.\n\n` +
+      `Was ich Ihnen anbieten kann:\n` +
+      `• Schnelle, mobiloptimierte Website – fertig in wenigen Tagen\n` +
+      `• Auffindbarkeit bei Google (SEO-Grundoptimierung inklusive)\n` +
+      `• Transparente Festpreise – keine versteckten Kosten\n` +
+      `• Persönlicher Ansprechpartner vor Ort in Hessen\n\n` +
+      `Meine bisherigen Arbeiten finden Sie unter: omar-portfolio.xyz\n\n` +
+      `Ich würde mich freuen, Ihnen in einem kurzen Gespräch zu zeigen, was ich konkret für Sie umsetzen kann – ` +
+      `selbstverständlich kostenlos und unverbindlich.\n\n` +
+      `Mit freundlichen Grüßen,\n\nOmar Rageh\n` +
+      `Full-Stack Developer & Automation Builder\n` +
+      `omarragehfulda@gmail.com\n` +
+      `+49 176 55093674\n` +
+      `omar-portfolio.xyz`;
+  } else if (fewReviews) {
+    body =
+      `Sehr geehrte Damen und Herren,\n\n` +
+      `mein Name ist Omar Rageh – Webentwickler aus Fulda. Ich helfe lokalen Unternehmen dabei, ` +
+      `ihre Sichtbarkeit im Internet gezielt zu verbessern.\n\n` +
+      `Ich habe Ihr Unternehmen „${businessName}" auf Google Maps gefunden und gesehen, ` +
+      `dass Ihre Online-Präsenz noch Potenzial hat. Mit einer professionellen, modernen Website ` +
+      `und einer stärkeren Online-Strategie können Sie deutlich mehr Neukunden gewinnen.\n\n` +
+      `Was ich konkret anbiete:\n` +
+      `• Neue oder überarbeitete Website mit Next.js & React\n` +
+      `• Bessere Auffindbarkeit bei Google-Suchen in Ihrer Region\n` +
+      `• Klare Kommunikation Ihrer Leistungen an die richtigen Kunden\n\n` +
+      `Referenzen: omar-portfolio.xyz\n\n` +
+      `Wäre ein kurzes, kostenloses Gespräch möglich?\n\n` +
+      `Mit freundlichen Grüßen,\n\nOmar Rageh\n` +
+      `omarragehfulda@gmail.com · +49 176 55093674 · omar-portfolio.xyz`;
+  } else {
+    body =
+      `Sehr geehrte Damen und Herren,\n\n` +
+      `mein Name ist Omar Rageh – Full-Stack-Entwickler aus Fulda, spezialisiert auf moderne ` +
+      `Websites und Web-Applikationen für lokale Unternehmen.\n\n` +
+      `Ich bin auf „${businessName}" aufmerksam geworden und würde Ihnen gerne zeigen, ` +
+      `wie ich Ihre Online-Präsenz weiter stärken kann – ob durch eine neue Website, ` +
+      `eine Überarbeitung des bestehenden Auftritts oder gezielte Optimierungen.\n\n` +
+      `Meine Arbeiten: omar-portfolio.xyz\n\n` +
+      `Ich freue mich auf Ihre Rückmeldung.\n\n` +
+      `Mit freundlichen Grüßen,\n\nOmar Rageh\n` +
+      `omarragehfulda@gmail.com · +49 176 55093674 · omar-portfolio.xyz`;
+  }
+
+  const subject = noWebsite
+    ? `Professionelle Website für ${businessName} – Angebot von Omar Rageh`
+    : `Mehr Kunden online gewinnen – Webentwicklung für ${businessName}`;
+
+  return { subject, body };
+}
+
 // German mobile prefixes: 015x, 016x, 017x — these are on WhatsApp
 // Landlines (030, 069, 089 etc.) rarely have WhatsApp
 export function isMobileNumber(phone: string): boolean {
