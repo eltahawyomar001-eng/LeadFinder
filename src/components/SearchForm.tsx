@@ -5,19 +5,27 @@ import { GERMAN_CITIES } from '@/lib/cities';
 import { GERMAN_STATES } from '@/lib/states';
 import { BUSINESS_CATEGORIES } from '@/lib/categories';
 import { SearchIcon, LoaderIcon } from './icons';
+import type { Source } from '@/types';
+
+// Sources that do NOT support All Germany or By State
+const CITY_ONLY_SOURCES: Source[] = [
+  'google', 'here', 'yelp', 'foursquare',
+  'dasoertliche', 'gelbeseiten', 'eleveneighty', 'multi',
+];
 
 interface Props {
-  onSearch: (category: string, location: string, radius: number, source: 'google' | 'osm') => void;
+  onSearch: (category: string, location: string, radius: number, source: Source) => void;
   loading: boolean;
 }
 
 export default function SearchForm({ onSearch, loading }: Props) {
   const [category, setCategory] = useState('');
   const [location, setLocation] = useState('');
-  const [source, setSource] = useState<'google' | 'osm'>('osm');
+  const [source, setSource] = useState<Source>('osm');
   const [radius, setRadius] = useState(5);
 
   const isStateOrAll = location === '__ALL__' || location.startsWith('state:');
+  const isCityOnlySource = CITY_ONLY_SOURCES.includes(source);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,10 +33,10 @@ export default function SearchForm({ onSearch, loading }: Props) {
     onSearch(category, location, radius, source);
   };
 
-  // Reset location when switching source if current selection is OSM-only
-  const handleSourceChange = (val: 'google' | 'osm') => {
+  const handleSourceChange = (val: Source) => {
     setSource(val);
-    if (val === 'google' && (location === '__ALL__' || location.startsWith('state:'))) {
+    // Reset location if it's OSM-only and new source doesn't support it
+    if (CITY_ONLY_SOURCES.includes(val) && (location === '__ALL__' || location.startsWith('state:'))) {
       setLocation('');
     }
   };
@@ -48,6 +56,14 @@ export default function SearchForm({ onSearch, loading }: Props) {
 
   const dropdownArrow = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`;
 
+  const selectWithArrow: React.CSSProperties = {
+    ...inputBase,
+    backgroundImage: dropdownArrow,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 14px center',
+    paddingRight: '44px',
+  };
+
   return (
     <form onSubmit={handleSubmit} style={{ backgroundColor: '#0d1f35', border: '1px solid #1e3a5f', borderRadius: '16px', padding: '20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
@@ -59,36 +75,35 @@ export default function SearchForm({ onSearch, loading }: Props) {
         </span>
       </div>
 
-      {/* Source toggle */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-        {([
-          { val: 'osm' as const,    label: 'OpenStreetMap', sub: 'Free · all of Germany' },
-          { val: 'google' as const, label: 'Google Places',  sub: 'Phone numbers + ratings' },
-        ]).map(({ val, label, sub }) => (
-          <button
-            key={val}
-            type="button"
-            onClick={() => handleSourceChange(val)}
-            style={{
-              flex: 1,
-              backgroundColor: source === val ? '#1e3a5f' : '#0f172a',
-              border: `2px solid ${source === val ? '#3b82f6' : '#1e293b'}`,
-              borderRadius: '12px',
-              padding: '10px 12px',
-              cursor: 'pointer',
-              textAlign: 'left' as const,
-              minHeight: 'unset',
-              display: 'block',
-              transition: 'all 0.15s',
-            }}
-          >
-            <p style={{ color: source === val ? '#93c5fd' : '#64748b', fontSize: '13px', fontWeight: 700, margin: 0 }}>{label}</p>
-            <p style={{ color: source === val ? '#3b82f6' : '#334155', fontSize: '11px', margin: '2px 0 0' }}>{sub}</p>
-          </button>
-        ))}
-      </div>
-
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {/* Source select */}
+        <div>
+          <label style={{ display: 'block', color: '#64748b', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+            Data Source
+          </label>
+          <select
+            value={source}
+            onChange={(e) => handleSourceChange(e.target.value as Source)}
+            style={selectWithArrow}
+          >
+            <optgroup label="Free — No API Key">
+              <option value="osm">OpenStreetMap</option>
+              <option value="dasoertliche">Das Örtliche — DE Phone Book</option>
+              <option value="gelbeseiten">Gelbe Seiten — DE Yellow Pages</option>
+              <option value="eleveneighty">11880.com — DE Directory</option>
+            </optgroup>
+            <optgroup label="API Key Required (free tiers)">
+              <option value="google">Google Places</option>
+              <option value="here">HERE Places — 250k/month free</option>
+              <option value="yelp">Yelp Fusion — 500/day free</option>
+              <option value="foursquare">Foursquare — free tier</option>
+            </optgroup>
+            <optgroup label="Multi-Source">
+              <option value="multi">All Sources — merge everything</option>
+            </optgroup>
+          </select>
+        </div>
+
         {/* Category */}
         <div>
           <label style={{ display: 'block', color: '#64748b', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
@@ -98,13 +113,7 @@ export default function SearchForm({ onSearch, loading }: Props) {
             value={category}
             onChange={(e) => setCategory(e.target.value)}
             required
-            style={{
-              ...inputBase,
-              backgroundImage: dropdownArrow,
-              backgroundRepeat: 'no-repeat',
-              backgroundPosition: 'right 14px center',
-              paddingRight: '44px',
-            }}
+            style={selectWithArrow}
           >
             <option value="">Select category...</option>
             {BUSINESS_CATEGORIES.map((cat) => (
@@ -164,6 +173,12 @@ export default function SearchForm({ onSearch, loading }: Props) {
           {location === '__ALL__' && (
             <p style={{ color: '#3b82f6', fontSize: '11px', marginTop: '6px', lineHeight: 1.4 }}>
               Scans all 16 Bundesländer one by one — results appear as each state completes. May take 5–10 min.
+            </p>
+          )}
+
+          {isCityOnlySource && (
+            <p style={{ color: '#64748b', fontSize: '11px', marginTop: '6px', lineHeight: 1.4 }}>
+              This source only supports city-level searches.
             </p>
           )}
         </div>

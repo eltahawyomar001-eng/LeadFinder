@@ -48,3 +48,14 @@ export interface GermanState {
 }
 
 export type Priority = 'high' | 'medium' | 'low';
+
+export type Source =
+  | 'google'
+  | 'osm'
+  | 'here'
+  | 'yelp'
+  | 'foursquare'
+  | 'dasoertliche'
+  | 'gelbeseiten'
+  | 'eleveneighty'
+  | 'multi';

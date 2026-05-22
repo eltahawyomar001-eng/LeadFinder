@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import type { Lead, SearchResponse } from '@/types';
+import type { Lead, SearchResponse, Source } from '@/types';
 import { GERMAN_STATES } from '@/lib/states';
 import Header from '@/components/Header';
 import SearchForm from '@/components/SearchForm';
@@ -16,13 +16,25 @@ interface ScanProgress {
   stateName: string;
 }
 
+const SOURCE_LABELS: Record<Source, string> = {
+  osm: 'OpenStreetMap',
+  google: 'Google Places',
+  here: 'HERE Places',
+  yelp: 'Yelp Fusion',
+  foursquare: 'Foursquare',
+  dasoertliche: 'Das Örtliche',
+  gelbeseiten: 'Gelbe Seiten',
+  eleveneighty: '11880.com',
+  multi: 'All Sources',
+};
+
 export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SearchResponse | null>(null);
   const [nextPageToken, setNextPageToken] = useState<string | undefined>(undefined);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [searchState, setSearchState] = useState<{ category: string; location: string; radius: number; source: 'google' | 'osm' } | null>(null);
+  const [searchState, setSearchState] = useState<{ category: string; location: string; radius: number; source: Source } | null>(null);
   const [mobileOnly, setMobileOnly] = useState(false);
   const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null);
 
@@ -55,6 +67,31 @@ export default function HomePage() {
       body: JSON.stringify({ category, city, radius, pageToken }),
     });
     if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'Search failed'); }
+    return res.json();
+  };
+
+  const fetchSource = async (
+    source: Exclude<Source, 'osm' | 'google'>,
+    category: string,
+    city: string,
+    radius: number
+  ): Promise<SearchResponse> => {
+    const endpointMap: Record<Exclude<Source, 'osm' | 'google'>, string> = {
+      here: '/api/here',
+      yelp: '/api/yelp',
+      foursquare: '/api/foursquare',
+      dasoertliche: '/api/dasoertliche',
+      gelbeseiten: '/api/gelbeseiten',
+      eleveneighty: '/api/eleveneighty',
+      multi: '/api/multisearch',
+    };
+    const endpoint = endpointMap[source];
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category, city, radius }),
+    });
+    if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? `${SOURCE_LABELS[source]} failed`); }
     return res.json();
   };
 
@@ -100,7 +137,7 @@ export default function HomePage() {
 
   // ── main search handler ───────────────────────────────────────────────────
 
-  const handleSearch = async (category: string, location: string, radius: number, source: 'google' | 'osm') => {
+  const handleSearch = async (category: string, location: string, radius: number, source: Source) => {
     setSearchState({ category, location, radius, source });
 
     // All-Germany sequential scan (OSM only)
@@ -129,17 +166,25 @@ export default function HomePage() {
       return;
     }
 
-    // City-level search (Google or OSM)
+    // City-level search
     setLoading(true);
     setError(null);
     setResult(null);
     setNextPageToken(undefined);
+
     try {
-      const data = source === 'osm'
-        ? await fetchOsmCity(category, location, radius)
-        : await fetchGoogle(category, location, radius);
+      let data: SearchResponse;
+      if (source === 'osm') {
+        data = await fetchOsmCity(category, location, radius);
+      } else if (source === 'google') {
+        data = await fetchGoogle(category, location, radius);
+        setNextPageToken(data.nextPageToken);
+      } else {
+        // All other sources (here, yelp, foursquare, dasoertliche, gelbeseiten, eleveneighty, multi)
+        // location here is the city name from GERMAN_CITIES
+        data = await fetchSource(source, category, location, radius);
+      }
       setResult(data);
-      if (source === 'google') setNextPageToken(data.nextPageToken);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
@@ -188,6 +233,17 @@ export default function HomePage() {
   const mobileCount = allLeads.filter((l) => l.is_mobile).length;
 
   const isGermanyScan = searchState?.location === '__ALL__';
+
+  const loadingMessage = (() => {
+    if (!searchState) return 'Searching...';
+    const label = SOURCE_LABELS[searchState.source] ?? searchState.source;
+    if (searchState.source === 'multi') return `Querying all sources in parallel + scraping emails...`;
+    if (searchState.source === 'osm') return 'Querying OpenStreetMap + scraping emails...';
+    if (['dasoertliche', 'gelbeseiten', 'eleveneighty'].includes(searchState.source)) {
+      return `Scraping ${label}...`;
+    }
+    return `Fetching from ${label} + scraping emails...`;
+  })();
 
   // ── render ────────────────────────────────────────────────────────────────
 
@@ -263,9 +319,7 @@ export default function HomePage() {
             ) : (
               <>
                 <p style={{ fontSize: '14px', color: '#64748b' }}>
-                  {searchState?.source === 'osm'
-                    ? 'Querying OpenStreetMap + scraping emails...'
-                    : 'Fetching businesses, phones + scraping emails...'}
+                  {loadingMessage}
                 </p>
                 <p style={{ fontSize: '12px', color: '#334155' }}>Takes 15–30 seconds</p>
               </>
