@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { Lead } from '@/types';
 import { getPriority } from '@/lib/scoring';
-import { WhatsAppIcon, CopyIcon, CheckIcon, ExternalLinkIcon, StarIcon, MessageIcon } from './icons';
+import { WhatsAppIcon, CopyIcon, CheckIcon, ExternalLinkIcon, MessageIcon } from './icons';
 
 const PRIORITY_STYLE = {
   high:   { label: 'High Priority', bg: '#450a0a', border: '#7f1d1d', text: '#fca5a5', dot: '#ef4444' },
@@ -25,14 +25,48 @@ interface Props {
   lead: Lead;
   index: number;
   onViewMessage: (lead: Lead) => void;
+  onEmailFound?: (placeId: string, email: string) => void;
 }
 
-export default function LeadCard({ lead, index, onViewMessage }: Props) {
+export default function LeadCard({ lead, index, onViewMessage, onEmailFound }: Props) {
   const priority = getPriority(lead.weakness_score);
   const ps = PRIORITY_STYLE[priority];
   const whatsappWithMessage = lead.whatsapp_link
     ? `${lead.whatsapp_link}?text=${encodeURIComponent(lead.whatsapp_message)}`
     : null;
+
+  const [scrapingEmail, setScrapingEmail] = useState(false);
+  const [scrapeError, setScrapeError] = useState(false);
+
+  const handleFindEmail = async () => {
+    if (!lead.website || scrapingEmail) return;
+    setScrapingEmail(true);
+    setScrapeError(false);
+    try {
+      const res = await fetch('/api/scrape-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ website: lead.website }),
+      });
+      const { email } = await res.json();
+      if (email && onEmailFound) {
+        onEmailFound(lead.place_id, email);
+      } else {
+        setScrapeError(true);
+      }
+    } catch {
+      setScrapeError(true);
+    } finally {
+      setScrapingEmail(false);
+    }
+  };
+
+  const emailHref = lead.email
+    ? `mailto:${lead.email}?subject=${encodeURIComponent(lead.email_subject ?? '')}&body=${encodeURIComponent(lead.email_body ?? '')}`
+    : `mailto:?subject=${encodeURIComponent(lead.email_subject ?? '')}&body=${encodeURIComponent(lead.email_body ?? '')}`;
+
+  const showEmailRow = lead.email || (!lead.is_mobile && lead.email_body);
+  const showFindEmailBtn = !lead.email && lead.website && !lead.is_mobile;
 
   return (
     <div style={{
@@ -58,6 +92,7 @@ export default function LeadCard({ lead, index, onViewMessage }: Props) {
             display: 'inline-flex',
             alignItems: 'center',
             gap: '5px',
+            whiteSpace: 'nowrap',
           }}>
             <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: ps.dot, flexShrink: 0 }} />
             {ps.label}
@@ -137,8 +172,21 @@ export default function LeadCard({ lead, index, onViewMessage }: Props) {
               <span style={{ color: '#ef4444', fontSize: '13px', fontWeight: 600 }}>No website</span>
             )}
           </div>
+          {/* Email badge */}
+          {lead.email && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                <polyline points="22,6 12,13 2,6" />
+              </svg>
+              <span style={{ color: '#34d399', fontSize: '12px', fontWeight: 600, maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {lead.email}
+              </span>
+              <CopyBtn text={lead.email} />
+            </div>
+          )}
           {/* Rating */}
-          {lead.rating && (
+          {!lead.email && lead.rating && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <svg width={13} height={13} viewBox="0 0 24 24" fill="#fbbf24" stroke="#fbbf24" strokeWidth="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
               <span style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 600 }}>{lead.rating.toFixed(1)}</span>
@@ -199,12 +247,9 @@ export default function LeadCard({ lead, index, onViewMessage }: Props) {
         </div>
 
         {/* Email row — shown when email found OR landline (no WhatsApp) */}
-        {(lead.email || (!lead.is_mobile && lead.email_body)) && (
+        {showEmailRow && (
           <a
-            href={lead.email
-              ? `mailto:${lead.email}?subject=${encodeURIComponent(lead.email_subject ?? '')}&body=${encodeURIComponent(lead.email_body ?? '')}`
-              : `mailto:?subject=${encodeURIComponent(lead.email_subject ?? '')}&body=${encodeURIComponent(lead.email_body ?? '')}`
-            }
+            href={emailHref}
             style={{
               width: '100%',
               backgroundColor: lead.email ? '#1e3a2e' : '#1a1a2e',
@@ -224,8 +269,53 @@ export default function LeadCard({ lead, index, onViewMessage }: Props) {
               <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
               <polyline points="22,6 12,13 2,6" />
             </svg>
-            {lead.email ? `Email: ${lead.email}` : 'Send email pitch (landline lead)'}
+            {lead.email ? `Email: ${lead.email}` : 'Send email pitch (no email found — add manually)'}
           </a>
+        )}
+
+        {/* Find email button — only when: has website, no email yet, landline/no phone */}
+        {showFindEmailBtn && (
+          <button
+            onClick={handleFindEmail}
+            disabled={scrapingEmail}
+            style={{
+              width: '100%',
+              backgroundColor: scrapeError ? '#1a0a0a' : '#0f172a',
+              border: `1px solid ${scrapeError ? '#7f1d1d' : '#334155'}`,
+              color: scrapeError ? '#f87171' : '#64748b',
+              borderRadius: '12px',
+              padding: '10px 14px',
+              fontSize: '13px',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              cursor: scrapingEmail ? 'not-allowed' : 'pointer',
+              opacity: scrapingEmail ? 0.6 : 1,
+            }}
+          >
+            {scrapingEmail ? (
+              <>
+                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}>
+                  <path d="M21 12a9 9 0 11-6.219-8.56" />
+                </svg>
+                Searching for email...
+              </>
+            ) : scrapeError ? (
+              <>
+                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+                No email found on website
+              </>
+            ) : (
+              <>
+                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                Find email from website
+              </>
+            )}
+          </button>
         )}
       </div>
     </div>

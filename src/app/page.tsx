@@ -167,6 +167,17 @@ export default function HomePage() {
     }
   };
 
+  // Patch a lead's email when scraped on-demand from LeadCard
+  const handleEmailFound = (placeId: string, email: string) => {
+    setResult((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        leads: prev.leads.map((l) => l.place_id === placeId ? { ...l, email } : l),
+      };
+    });
+  };
+
   // ── derived state ─────────────────────────────────────────────────────────
 
   const allLeads: Lead[] = result?.leads ?? [];
@@ -324,7 +335,7 @@ export default function HomePage() {
                 </p>
               </div>
             ) : (
-              <ResultsTable leads={filteredLeads} />
+              <ResultsTable leads={filteredLeads} onEmailFound={handleEmailFound} />
             )}
 
             {nextPageToken && !loading && (

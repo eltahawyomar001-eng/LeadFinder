@@ -29,7 +29,6 @@ export async function POST(req: NextRequest) {
       }
       lat = stateData.lat;
       lng = stateData.lng;
-      // radiusM not used for state queries
     } else if (city) {
       const cityData = GERMAN_CITIES.find((c) => c.name === city);
       if (!cityData) {
@@ -44,14 +43,15 @@ export async function POST(req: NextRequest) {
 
     const leads = await searchOverpass(category, lat, lng, radiusM, stateName);
 
-    // For state-level queries skip email scraping — too many results, not enough time.
-    // For city-level queries scrape emails in parallel.
-    if (!stateName) {
-      const emails = await Promise.all(
-        leads.map((l) => l.website ? scrapeEmailFromWebsite(l.website) : Promise.resolve(null))
-      );
-      leads.forEach((l, i) => { l.email = emails[i]; });
-    }
+    // Scrape emails for leads that have a website.
+    // For state queries cap at top 50 (already sorted by score) to stay within the 60s timeout.
+    const withWebsite = leads.filter((l) => l.website);
+    const toScrape = stateName ? withWebsite.slice(0, 50) : withWebsite;
+
+    const emails = await Promise.all(
+      toScrape.map((l) => scrapeEmailFromWebsite(l.website!))
+    );
+    toScrape.forEach((l, i) => { l.email = emails[i]; });
 
     const response: SearchResponse = {
       leads,

@@ -7,6 +7,7 @@ import MessageModal from './MessageModal';
 
 interface Props {
   leads: Lead[];
+  onEmailFound?: (placeId: string, email: string) => void;
 }
 
 const PRIORITY: Record<string, { label: string; bg: string; border: string; text: string; dot: string }> = {
@@ -19,7 +20,7 @@ function priorityKey(score: number) {
   return score >= 6 ? 'high' : score >= 3 ? 'medium' : 'low';
 }
 
-export default function ResultsTable({ leads }: Props) {
+export default function ResultsTable({ leads, onEmailFound }: Props) {
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
 
   if (leads.length === 0) return null;
@@ -29,7 +30,7 @@ export default function ResultsTable({ leads }: Props) {
       {/* ── Mobile: stacked cards (< 768 px) ───────────────────────────────── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }} className="md:hidden">
         {leads.map((lead, i) => (
-          <LeadCard key={lead.place_id} lead={lead} index={i} onViewMessage={setActiveLead} />
+          <LeadCard key={lead.place_id} lead={lead} index={i} onViewMessage={setActiveLead} onEmailFound={onEmailFound} />
         ))}
       </div>
 
