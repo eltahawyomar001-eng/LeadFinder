@@ -37,6 +37,7 @@ export default function HomePage() {
   const [searchState, setSearchState] = useState<{ category: string; location: string; radius: number; source: Source } | null>(null);
   const [mobileOnly, setMobileOnly] = useState(false);
   const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null);
+  const [contactedIds, setContactedIds] = useState(new Set<string>());
 
   // ── helpers ──────────────────────────────────────────────────────────────
 
@@ -210,6 +211,10 @@ export default function HomePage() {
     } finally {
       setLoadingMore(false);
     }
+  };
+
+  const handleContacted = (placeId: string) => {
+    setContactedIds((prev) => new Set([...prev, placeId]));
   };
 
   // Patch a lead's email when scraped on-demand from LeadCard
@@ -390,7 +395,7 @@ export default function HomePage() {
                 </p>
               </div>
             ) : (
-              <ResultsTable leads={filteredLeads} onEmailFound={handleEmailFound} />
+              <ResultsTable leads={filteredLeads} onEmailFound={handleEmailFound} contactedIds={contactedIds} onContacted={handleContacted} />
             )}
 
             {nextPageToken && !loading && (
