@@ -51,27 +51,21 @@ interface WarmupStatus {
 
 // ─── Column config ────────────────────────────────────────────────────────────
 
-const COLUMNS: { key: CardStatus; label: string; color: string; bg: string; border: string }[] = [
-  { key: 'contacted', label: 'Contacted', color: '#93c5fd', bg: '#0c1a2e', border: '#1e3a5f' },
-  { key: 'replied',   label: 'Replied',   color: '#fbbf24', bg: '#1c1208', border: '#78350f' },
-  { key: 'meeting',   label: 'Meeting',   color: '#a78bfa', bg: '#12082a', border: '#4c1d95' },
-  { key: 'proposal',  label: 'Proposal',  color: '#f472b6', bg: '#1f0a18', border: '#831843' },
-  { key: 'won',       label: 'Won',       color: '#4ade80', bg: '#052e16', border: '#166534' },
-  { key: 'lost',      label: 'Lost',      color: '#64748b', bg: '#0f172a', border: '#1e293b' },
+const COLUMNS: {
+  key: CardStatus;
+  label: string;
+  color: string;
+  bg: string;
+  border: string;
+  accent: string;
+}[] = [
+  { key: 'contacted', label: 'Contacted', color: '#93c5fd', bg: '#0c1a2e', border: '#1e3a5f', accent: '#3b82f6' },
+  { key: 'replied',   label: 'Replied',   color: '#fbbf24', bg: '#1c1208', border: '#78350f', accent: '#f59e0b' },
+  { key: 'meeting',   label: 'Meeting',   color: '#a78bfa', bg: '#12082a', border: '#4c1d95', accent: '#8b5cf6' },
+  { key: 'proposal',  label: 'Proposal',  color: '#f472b6', bg: '#1f0a18', border: '#831843', accent: '#ec4899' },
+  { key: 'won',       label: 'Won',       color: '#4ade80', bg: '#052e16', border: '#166534', accent: '#22c55e' },
+  { key: 'lost',      label: 'Lost',      color: '#64748b', bg: '#0f172a', border: '#1e293b', accent: '#475569' },
 ];
-
-function ColumnIcon({ status, size = 12 }: { status: CardStatus; size?: number }) {
-  const p = { width: size, height: size, fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, flexShrink: 0 };
-  switch (status) {
-    case 'contacted': return <svg viewBox="0 0 24 24" {...p}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>;
-    case 'replied':   return <svg viewBox="0 0 24 24" {...p}><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>;
-    case 'meeting':   return <svg viewBox="0 0 24 24" {...p}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>;
-    case 'proposal':  return <svg viewBox="0 0 24 24" {...p}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>;
-    case 'won':       return <svg viewBox="0 0 24 24" {...p}><polyline points="20 6 9 17 4 12"/></svg>;
-    case 'lost':      return <svg viewBox="0 0 24 24" {...p}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
-    default:          return null;
-  }
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -79,13 +73,17 @@ function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const d = Math.floor(diff / 86400000);
   const h = Math.floor(diff / 3600000);
+  const m = Math.floor(diff / 60000);
   if (d > 0) return `${d}d ago`;
   if (h > 0) return `${h}h ago`;
+  if (m > 0) return `${m}m ago`;
   return 'just now';
 }
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return new Date(dateStr).toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+  });
 }
 
 function nextPendingSeq(sequences: SequenceRow[]): SequenceRow | null {
@@ -100,90 +98,153 @@ function followUpLabel(seq: SequenceRow): { label: string; urgent: boolean; futu
   const urgent = days <= 0;
   const future = days > 1;
   const label = urgent
-    ? `Follow-up #${seq.step} overdue`
+    ? `Step ${seq.step} overdue`
     : days === 1
-    ? `Follow-up #${seq.step} — tomorrow`
-    : `Follow-up #${seq.step} — in ${days}d`;
+    ? `Step ${seq.step} — tomorrow`
+    : `Step ${seq.step} — in ${days}d`;
   return { label, urgent, future };
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function StatCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
-  return (
-    <div style={{ backgroundColor: '#0a1628', border: '1px solid #1e293b', borderRadius: '14px', padding: '16px 20px', flex: 1, minWidth: '140px' }}>
-      <p style={{ color: '#475569', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>{label}</p>
-      <p style={{ color: color ?? '#f1f5f9', fontSize: '24px', fontWeight: 800, lineHeight: 1 }}>{value}</p>
-      {sub && <p style={{ color: '#334155', fontSize: '11px', marginTop: '4px' }}>{sub}</p>}
-    </div>
-  );
+function scoreColor(score: number): string {
+  if (score >= 7) return '#ef4444';
+  if (score >= 4) return '#f97316';
+  return '#22c55e';
 }
 
-function SequenceTimeline({ sequences, onSendNow }: { sequences: SequenceRow[]; onSendNow: (seq: SequenceRow) => Promise<void> }) {
-  const [sendingId, setSendingId] = useState<string | null>(null);
+function scoreBg(score: number): string {
+  if (score >= 7) return '#450a0a';
+  if (score >= 4) return '#431407';
+  return '#052e16';
+}
 
+function scoreBorder(score: number): string {
+  if (score >= 7) return '#7f1d1d';
+  if (score >= 4) return '#7c2d12';
+  return '#166534';
+}
+
+function scoreLabel(score: number): string {
+  if (score >= 7) return 'High';
+  if (score >= 4) return 'Mid';
+  return 'Low';
+}
+
+// ─── Icons ────────────────────────────────────────────────────────────────────
+
+function ColumnIcon({ status, size = 12 }: { status: CardStatus; size?: number }) {
+  const p = {
+    width: size, height: size, fill: 'none', stroke: 'currentColor',
+    strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const,
+    flexShrink: 0,
+  };
+  switch (status) {
+    case 'contacted': return <svg viewBox="0 0 24 24" {...p}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>;
+    case 'replied':   return <svg viewBox="0 0 24 24" {...p}><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>;
+    case 'meeting':   return <svg viewBox="0 0 24 24" {...p}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>;
+    case 'proposal':  return <svg viewBox="0 0 24 24" {...p}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>;
+    case 'won':       return <svg viewBox="0 0 24 24" {...p}><polyline points="20 6 9 17 4 12"/></svg>;
+    case 'lost':      return <svg viewBox="0 0 24 24" {...p}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+    default:          return null;
+  }
+}
+
+// ─── Sequence Timeline ────────────────────────────────────────────────────────
+
+function SequenceTimeline({ sequences, onSendNow }: {
+  sequences: SequenceRow[];
+  onSendNow: (seq: SequenceRow) => Promise<void>;
+}) {
+  const [sendingId, setSendingId] = useState<string | null>(null);
   const sorted = [...sequences].sort((a, b) => a.step - b.step);
 
   const statusStyle: Record<string, { color: string; bg: string; border: string; label: string }> = {
-    sent:          { color: '#4ade80', bg: '#052e16', border: '#166534', label: 'Sent' },
-    pending:       { color: '#fbbf24', bg: '#1c1208', border: '#78350f', label: 'Pending' },
-    skipped:       { color: '#64748b', bg: '#0f172a', border: '#1e293b', label: 'Skipped' },
-    unsubscribed:  { color: '#f87171', bg: '#450a0a', border: '#7f1d1d', label: 'Unsubscribed' },
-    replied:       { color: '#a78bfa', bg: '#12082a', border: '#4c1d95', label: 'Replied' },
+    sent:         { color: '#4ade80', bg: '#052e16', border: '#166534', label: 'Sent' },
+    pending:      { color: '#fbbf24', bg: '#1c1208', border: '#78350f', label: 'Pending' },
+    skipped:      { color: '#64748b', bg: '#0f172a', border: '#1e293b', label: 'Skipped' },
+    unsubscribed: { color: '#f87171', bg: '#450a0a', border: '#7f1d1d', label: 'Unsubscribed' },
+    replied:      { color: '#a78bfa', bg: '#12082a', border: '#4c1d95', label: 'Replied' },
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      {sorted.map((seq) => {
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {sorted.map((seq, idx) => {
         const st = statusStyle[seq.status] ?? statusStyle.pending;
         const isPending = seq.status === 'pending';
         const isOverdue = isPending && new Date(seq.scheduled_for) < new Date();
+        const isSent = seq.status === 'sent';
 
         return (
-          <div key={seq.id} style={{ backgroundColor: '#050d1a', border: `1px solid ${st.border}`, borderRadius: '10px', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid #0f172a' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ color: '#475569', fontSize: '12px', fontWeight: 700 }}>Step {seq.step}</span>
-                <span style={{ backgroundColor: st.bg, border: `1px solid ${st.border}`, color: st.color, borderRadius: '999px', padding: '2px 8px', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase' }}>
-                  {isOverdue ? (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                      <svg width={9} height={9} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                      OVERDUE
-                    </span>
-                  ) : st.label}
-                </span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: '#334155', fontSize: '10px' }}>
-                  {seq.sent_at ? `Sent ${formatDate(seq.sent_at)}` : isPending ? `Due ${formatDate(seq.scheduled_for)}` : ''}
-                </span>
-                {isPending && (
-                  <button
-                    onClick={async () => {
-                      setSendingId(seq.id);
-                      await onSendNow(seq);
-                      setSendingId(null);
-                    }}
-                    disabled={sendingId === seq.id}
-                    style={{
-                      backgroundColor: isOverdue ? '#7f1d1d' : '#1e3a5f',
-                      border: `1px solid ${isOverdue ? '#ef4444' : '#3b82f6'}`,
-                      color: isOverdue ? '#fca5a5' : '#93c5fd',
-                      borderRadius: '6px', padding: '4px 10px',
-                      fontSize: '11px', fontWeight: 700, cursor: 'pointer',
-                      opacity: sendingId === seq.id ? 0.6 : 1,
-                    }}
-                  >
-                    {sendingId === seq.id ? 'Sending…' : 'Send now'}
-                  </button>
+          <div key={seq.id} style={{ display: 'flex', gap: '12px' }}>
+            {/* Timeline line */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+              <div style={{
+                width: '28px', height: '28px', borderRadius: '50%',
+                backgroundColor: isSent ? '#052e16' : st.bg,
+                border: `2px solid ${isSent ? '#166534' : st.border}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                {isSent ? (
+                  <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                ) : (
+                  <span style={{ color: st.color, fontSize: '11px', fontWeight: 800 }}>{seq.step}</span>
                 )}
               </div>
+              {idx < sorted.length - 1 && (
+                <div style={{ width: '2px', flex: 1, minHeight: '16px', backgroundColor: '#1e293b', marginTop: '4px' }} />
+              )}
             </div>
-            <div style={{ padding: '10px 14px' }}>
-              <p style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>{seq.subject}</p>
-              <p style={{ color: '#334155', fontSize: '11px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-                {seq.body.slice(0, 200)}{seq.body.length > 200 ? '…' : ''}
-              </p>
+
+            {/* Content */}
+            <div style={{
+              flex: 1, backgroundColor: '#050d1a',
+              border: `1px solid ${isOverdue ? '#7f1d1d' : '#0f172a'}`,
+              borderRadius: '10px', overflow: 'hidden',
+              marginBottom: idx < sorted.length - 1 ? '0' : '0',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid #0f172a' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ color: '#64748b', fontSize: '11px', fontWeight: 700 }}>
+                    Step {seq.step}
+                  </span>
+                  <span style={{
+                    backgroundColor: st.bg, border: `1px solid ${st.border}`,
+                    color: st.color, borderRadius: '999px', padding: '1px 7px',
+                    fontSize: '10px', fontWeight: 700, textTransform: 'uppercase' as const,
+                  }}>
+                    {isOverdue ? 'OVERDUE' : st.label}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ color: '#334155', fontSize: '10px' }}>
+                    {seq.sent_at ? `Sent ${formatDate(seq.sent_at)}` : isPending ? `Due ${formatDate(seq.scheduled_for)}` : ''}
+                  </span>
+                  {isPending && (
+                    <button
+                      onClick={async () => { setSendingId(seq.id); await onSendNow(seq); setSendingId(null); }}
+                      disabled={sendingId === seq.id}
+                      style={{
+                        backgroundColor: isOverdue ? '#7f1d1d' : '#1e3a5f',
+                        border: `1px solid ${isOverdue ? '#ef4444' : '#3b82f6'}`,
+                        color: isOverdue ? '#fca5a5' : '#93c5fd',
+                        borderRadius: '6px', padding: '3px 10px',
+                        fontSize: '10px', fontWeight: 700, cursor: 'pointer',
+                        opacity: sendingId === seq.id ? 0.6 : 1, minHeight: 'unset',
+                      }}
+                    >
+                      {sendingId === seq.id ? 'Sending…' : 'Send now'}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div style={{ padding: '8px 12px' }}>
+                <p style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 600, marginBottom: '3px' }}>{seq.subject}</p>
+                <p style={{ color: '#334155', fontSize: '10px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                  {seq.body.slice(0, 180)}{seq.body.length > 180 ? '…' : ''}
+                </p>
+              </div>
             </div>
           </div>
         );
@@ -192,17 +253,10 @@ function SequenceTimeline({ sequences, onSendNow }: { sequences: SequenceRow[]; 
   );
 }
 
-// ─── Detail modal ─────────────────────────────────────────────────────────────
+// ─── Detail Drawer ────────────────────────────────────────────────────────────
 
-function DetailModal({
-  card,
-  onClose,
-  onMove,
-  onDelete,
-  onUnsubscribe,
-  onSendNow,
-  onSaveNotes,
-  onSaveValue,
+function DetailDrawer({
+  card, onClose, onMove, onDelete, onUnsubscribe, onSendNow, onSaveNotes, onSaveValue,
 }: {
   card: CrmCard;
   onClose: () => void;
@@ -214,152 +268,368 @@ function DetailModal({
   onSaveValue: (eur: number | null) => Promise<void>;
 }) {
   const lead = card.lf_leads;
+  const [activeTab, setActiveTab] = useState<'info' | 'emails'>('info');
   const [notes, setNotes] = useState(card.notes ?? '');
   const [valueInput, setValueInput] = useState(card.value_eur?.toString() ?? '');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [unsub, setUnsub] = useState(false);
   const col = COLUMNS.find((c) => c.key === card.status)!;
+  const sentCount = (card.lf_sequences ?? []).filter((s) => s.status === 'sent').length;
+  const pendingCount = (card.lf_sequences ?? []).filter((s) => s.status === 'pending').length;
 
   return (
     <div
       onClick={onClose}
-      style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', zIndex: 100, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', padding: '0' }}
+      style={{
+        position: 'fixed', inset: 0,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        backdropFilter: 'blur(6px)',
+        WebkitBackdropFilter: 'blur(6px)',
+        zIndex: 100,
+        display: 'flex', alignItems: 'stretch', justifyContent: 'flex-end',
+      }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ backgroundColor: '#040d1a', borderLeft: '1px solid #1e293b', width: '100%', maxWidth: '540px', height: '100vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}
+        style={{
+          backgroundColor: '#040d1a',
+          borderLeft: '1px solid #1e293b',
+          width: '100%', maxWidth: '520px',
+          height: '100dvh', overflowY: 'auto',
+          display: 'flex', flexDirection: 'column',
+          animation: 'slideInRight 0.22s ease-out',
+        }}
       >
-        {/* Modal header */}
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', position: 'sticky', top: 0, backgroundColor: '#040d1a', zIndex: 10 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 800, lineHeight: 1.2, marginBottom: '4px' }}>{lead.name}</p>
-            {lead.email && <p style={{ color: '#60a5fa', fontSize: '13px', fontFamily: 'monospace' }}>{lead.email}</p>}
+        {/* Header */}
+        <div style={{
+          padding: '20px 24px 0',
+          borderBottom: '1px solid #1e293b',
+          position: 'sticky', top: 0,
+          backgroundColor: '#040d1a', zIndex: 10,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '16px' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ color: '#f1f5f9', fontSize: '17px', fontWeight: 800, lineHeight: 1.25, marginBottom: '4px' }}>
+                {lead.name}
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span style={{
+                  backgroundColor: col.bg, border: `1px solid ${col.border}`,
+                  color: col.color, borderRadius: '999px', padding: '3px 10px',
+                  fontSize: '11px', fontWeight: 700,
+                  display: 'inline-flex', alignItems: 'center', gap: '4px',
+                }}>
+                  <ColumnIcon status={col.key} size={10} /> {col.label}
+                </span>
+                {lead.email && (
+                  <span style={{ color: '#60a5fa', fontSize: '12px', fontFamily: 'monospace' }}>
+                    {lead.email}
+                  </span>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              style={{
+                background: '#0a1628', border: '1px solid #1e293b', color: '#475569',
+                cursor: 'pointer', padding: '8px', borderRadius: '8px',
+                display: 'flex', alignItems: 'center', minHeight: 'unset', flexShrink: 0,
+              }}
+            >
+              <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', padding: '6px', display: 'flex', alignItems: 'center', minHeight: 'unset' }}>
-            <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
+
+          {/* Quick stats strip */}
+          <div style={{ display: 'flex', gap: '1px', marginBottom: '16px' }}>
+            {[
+              { label: 'Score', value: `${lead.weakness_score}/10`, color: scoreColor(lead.weakness_score) },
+              { label: 'Sent', value: `${sentCount} email${sentCount !== 1 ? 's' : ''}`, color: '#4ade80' },
+              { label: 'Pending', value: `${pendingCount} step${pendingCount !== 1 ? 's' : ''}`, color: pendingCount > 0 ? '#fbbf24' : '#334155' },
+              { label: 'Added', value: timeAgo(card.created_at), color: '#475569' },
+            ].map((s) => (
+              <div key={s.label} style={{
+                flex: 1, backgroundColor: '#0a1628', padding: '8px 10px', textAlign: 'center',
+                borderRight: '1px solid #1e293b',
+              }}>
+                <p style={{ color: '#334155', fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>{s.label}</p>
+                <p style={{ color: s.color, fontSize: '12px', fontWeight: 800 }}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Tabs */}
+          <div style={{ display: 'flex', gap: '0' }}>
+            {(['info', 'emails'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                style={{
+                  flex: 1, padding: '10px', fontSize: '12px', fontWeight: 700,
+                  textTransform: 'capitalize', cursor: 'pointer', minHeight: 'unset',
+                  background: 'none', border: 'none',
+                  color: activeTab === tab ? col.color : '#475569',
+                  borderBottom: `2px solid ${activeTab === tab ? col.accent : 'transparent'}`,
+                  transition: 'color 0.15s, border-color 0.15s',
+                }}
+              >
+                {tab === 'info' ? 'Details' : 'Email Sequence'}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <div style={{ padding: '20px 24px', flex: 1 }}>
+          {activeTab === 'info' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-          {/* Stage + quick info */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-            <span style={{ backgroundColor: col.bg, border: `1px solid ${col.border}`, color: col.color, borderRadius: '999px', padding: '4px 12px', fontSize: '12px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-              <ColumnIcon status={col.key} size={11} /> {col.label}
-            </span>
-            {lead.website && (
-              <a href={lead.website} target="_blank" rel="noopener noreferrer" style={{ color: '#475569', fontSize: '12px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
-                {lead.website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]}
-                <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
-              </a>
-            )}
-            {lead.phone && (
-              <span style={{ color: '#475569', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg>
-                {lead.phone}
-              </span>
-            )}
-            <span style={{ color: '#334155', fontSize: '11px' }}>Added {timeAgo(card.created_at)}</span>
-          </div>
+              {/* Contact info */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {lead.phone && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ width: '32px', height: '32px', backgroundColor: '#0a1628', border: '1px solid #1e293b', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/>
+                      </svg>
+                    </div>
+                    <span style={{ color: '#e2e8f0', fontSize: '13px', fontFamily: 'monospace' }}>{lead.phone}</span>
+                  </div>
+                )}
+                {lead.website && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ width: '32px', height: '32px', backgroundColor: '#0a1628', border: '1px solid #1e293b', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+                        <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
+                      </svg>
+                    </div>
+                    <a href={lead.website} target="_blank" rel="noopener noreferrer"
+                      style={{ color: '#60a5fa', fontSize: '13px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {lead.website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]}
+                      <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+                        <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                      </svg>
+                    </a>
+                  </div>
+                )}
+                {lead.weakness_reasons?.[0] && (
+                  <div style={{ backgroundColor: '#050d1a', border: '1px solid #0f172a', borderRadius: '8px', padding: '10px 12px' }}>
+                    <p style={{ color: '#475569', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>Website weakness</p>
+                    <p style={{ color: '#64748b', fontSize: '12px', lineHeight: 1.5 }}>{lead.weakness_reasons[0]}</p>
+                  </div>
+                )}
+              </div>
 
-          {/* Move to stage */}
-          <div>
-            <p style={{ color: '#475569', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>Move to stage</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-              {COLUMNS.filter((c) => c.key !== card.status).map((c) => (
+              {/* Move to stage */}
+              <div>
+                <p style={{ color: '#475569', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px' }}>Move to stage</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+                  {COLUMNS.map((c) => (
+                    <button
+                      key={c.key}
+                      onClick={() => c.key !== card.status ? onMove(c.key) : undefined}
+                      style={{
+                        backgroundColor: c.key === card.status ? c.bg : '#0a1628',
+                        border: `1px solid ${c.key === card.status ? c.border : '#1e293b'}`,
+                        color: c.key === card.status ? c.color : '#475569',
+                        borderRadius: '8px', padding: '8px',
+                        fontSize: '11px', fontWeight: 700, cursor: c.key !== card.status ? 'pointer' : 'default',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+                        minHeight: 'unset',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      <ColumnIcon status={c.key} size={11} /> {c.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Deal value */}
+              <div>
+                <p style={{ color: '#475569', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px' }}>Deal value (EUR)</p>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{ flex: 1, position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#475569', fontSize: '14px', fontWeight: 600 }}>€</span>
+                    <input
+                      type="number"
+                      value={valueInput}
+                      onChange={(e) => setValueInput(e.target.value)}
+                      placeholder="0"
+                      style={{
+                        width: '100%', backgroundColor: '#0a1628', border: '1px solid #1e293b',
+                        borderRadius: '8px', padding: '10px 12px 10px 26px',
+                        color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' as const,
+                      }}
+                    />
+                  </div>
+                  <button
+                    onClick={async () => {
+                      setSaving(true);
+                      await onSaveValue(valueInput ? parseInt(valueInput) : null);
+                      setSaving(false);
+                    }}
+                    style={{
+                      backgroundColor: '#1e3a5f', border: '1px solid #3b82f6', color: '#93c5fd',
+                      borderRadius: '8px', padding: '10px 16px', fontSize: '12px', fontWeight: 700,
+                      cursor: 'pointer', opacity: saving ? 0.6 : 1, minHeight: 'unset',
+                    }}
+                  >
+                    {saving ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <p style={{ color: '#475569', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px' }}>Notes</p>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  onBlur={async () => { if (notes !== (card.notes ?? '')) await onSaveNotes(notes); }}
+                  placeholder="Add notes about this lead…"
+                  style={{
+                    width: '100%', backgroundColor: '#0a1628', border: '1px solid #1e293b',
+                    borderRadius: '8px', padding: '10px 12px', color: '#e2e8f0',
+                    fontSize: '13px', resize: 'vertical', minHeight: '80px',
+                    boxSizing: 'border-box' as const, lineHeight: 1.5,
+                  }}
+                />
+              </div>
+
+              {/* Danger zone */}
+              <div style={{ borderTop: '1px solid #1e293b', paddingTop: '16px', display: 'flex', gap: '8px' }}>
                 <button
-                  key={c.key}
-                  onClick={() => onMove(c.key)}
-                  style={{ backgroundColor: c.bg, border: `1px solid ${c.border}`, color: c.color, borderRadius: '8px', padding: '6px 14px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                  onClick={async () => { setUnsub(true); await onUnsubscribe(); setUnsub(false); }}
+                  disabled={unsub}
+                  style={{
+                    flex: 1, backgroundColor: '#1c0a08', border: '1px solid #78350f', color: '#fbbf24',
+                    borderRadius: '8px', padding: '10px', fontSize: '11px', fontWeight: 700,
+                    cursor: 'pointer', opacity: unsub ? 0.6 : 1, minHeight: 'unset',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+                  }}
                 >
-                  <ColumnIcon status={c.key} size={11} /> {c.label}
+                  <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+                  </svg>
+                  {unsub ? 'Unsubscribing…' : 'Unsubscribe'}
                 </button>
-              ))}
+                <button
+                  onClick={async () => {
+                    if (!confirm(`Delete ${lead.name}? This cannot be undone.`)) return;
+                    setDeleting(true);
+                    await onDelete();
+                  }}
+                  disabled={deleting}
+                  style={{
+                    flex: 1, backgroundColor: '#450a0a', border: '1px solid #7f1d1d', color: '#fca5a5',
+                    borderRadius: '8px', padding: '10px', fontSize: '11px', fontWeight: 700,
+                    cursor: 'pointer', opacity: deleting ? 0.6 : 1, minHeight: 'unset',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+                  }}
+                >
+                  <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+                    <path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                  </svg>
+                  {deleting ? 'Deleting…' : 'Delete Lead'}
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Deal value */}
-          <div>
-            <p style={{ color: '#475569', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>Deal value (€)</p>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <input
-                type="number"
-                value={valueInput}
-                onChange={(e) => setValueInput(e.target.value)}
-                placeholder="e.g. 1500"
-                style={{ flex: 1, backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '8px 12px', color: '#f1f5f9', fontSize: '14px' }}
-              />
-              <button
-                onClick={async () => {
-                  setSaving(true);
-                  const v = valueInput ? parseInt(valueInput) : null;
-                  await onSaveValue(v);
-                  setSaving(false);
-                }}
-                style={{ backgroundColor: '#1e3a5f', border: '1px solid #3b82f6', color: '#93c5fd', borderRadius: '8px', padding: '8px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}
-              >
-                {saving ? 'Saving…' : 'Save'}
-              </button>
+          {activeTab === 'emails' && (
+            <div>
+              {(card.lf_sequences ?? []).length > 0
+                ? <SequenceTimeline sequences={card.lf_sequences} onSendNow={onSendNow} />
+                : (
+                  <div style={{ textAlign: 'center', padding: '40px 0', color: '#334155' }}>
+                    <svg width={32} height={32} viewBox="0 0 24 24" fill="none" stroke="#1e293b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '8px' }}>
+                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                      <polyline points="22,6 12,13 2,6"/>
+                    </svg>
+                    <p style={{ fontSize: '13px' }}>No email sequence found</p>
+                  </div>
+                )
+              }
             </div>
-          </div>
-
-          {/* Notes */}
-          <div>
-            <p style={{ color: '#475569', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>Notes</p>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              onBlur={async () => { if (notes !== (card.notes ?? '')) await onSaveNotes(notes); }}
-              placeholder="Add notes about this lead…"
-              style={{ width: '100%', backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '10px 12px', color: '#e2e8f0', fontSize: '13px', resize: 'vertical', minHeight: '80px', boxSizing: 'border-box', lineHeight: 1.5 }}
-            />
-          </div>
-
-          {/* Email sequence */}
-          <div>
-            <p style={{ color: '#475569', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '12px' }}>Email sequence</p>
-            {card.lf_sequences?.length > 0
-              ? <SequenceTimeline sequences={card.lf_sequences} onSendNow={onSendNow} />
-              : <p style={{ color: '#334155', fontSize: '13px' }}>No sequences found.</p>
-            }
-          </div>
-
-          {/* Danger zone */}
-          <div style={{ borderTop: '1px solid #1e293b', paddingTop: '20px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <button
-              onClick={async () => { setUnsub(true); await onUnsubscribe(); setUnsub(false); }}
-              disabled={unsub}
-              style={{ flex: 1, backgroundColor: '#1c0a08', border: '1px solid #78350f', color: '#fbbf24', borderRadius: '10px', padding: '10px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', opacity: unsub ? 0.6 : 1 }}
-            >
-              {unsub ? 'Unsubscribing…' : (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                  <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                  Mark Unsubscribed
-                </span>
-              )}
-            </button>
-            <button
-              onClick={async () => {
-                if (!confirm(`Delete ${lead.name} from CRM? This cannot be undone.`)) return;
-                setDeleting(true);
-                await onDelete();
-              }}
-              disabled={deleting}
-              style={{ flex: 1, backgroundColor: '#450a0a', border: '1px solid #7f1d1d', color: '#fca5a5', borderRadius: '10px', padding: '10px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', opacity: deleting ? 0.6 : 1 }}
-            >
-              {deleting ? 'Deleting…' : (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                  <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                  Delete Lead
-                </span>
-              )}
-            </button>
-          </div>
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── List View Row ────────────────────────────────────────────────────────────
+
+function ListRow({ card, onSelect }: { card: CrmCard; onSelect: () => void }) {
+  const lead = card.lf_leads;
+  const col = COLUMNS.find((c) => c.key === card.status)!;
+  const nextSeq = nextPendingSeq(card.lf_sequences ?? []);
+  const fu = nextSeq ? followUpLabel(nextSeq) : null;
+
+  return (
+    <tr
+      onClick={onSelect}
+      style={{ borderBottom: '1px solid #0a1628', cursor: 'pointer', transition: 'background 0.1s' }}
+      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0a1628')}
+      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+    >
+      <td style={{ padding: '12px 16px' }}>
+        <p style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 700, lineHeight: 1.3, marginBottom: '2px' }}>{lead.name}</p>
+        {lead.email && (
+          <p style={{ color: '#475569', fontSize: '11px', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '220px' }}>
+            {lead.email}
+          </p>
+        )}
+      </td>
+      <td style={{ padding: '12px 16px' }}>
+        <span style={{
+          backgroundColor: col.bg, border: `1px solid ${col.border}`, color: col.color,
+          borderRadius: '999px', padding: '3px 10px', fontSize: '11px', fontWeight: 700,
+          display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap',
+        }}>
+          <ColumnIcon status={col.key} size={10} /> {col.label}
+        </span>
+      </td>
+      <td style={{ padding: '12px 16px' }}>
+        <span style={{
+          backgroundColor: scoreBg(lead.weakness_score),
+          border: `1px solid ${scoreBorder(lead.weakness_score)}`,
+          color: scoreColor(lead.weakness_score),
+          borderRadius: '6px', padding: '3px 8px', fontSize: '11px', fontWeight: 700,
+        }}>
+          {lead.weakness_score}/10 {scoreLabel(lead.weakness_score)}
+        </span>
+      </td>
+      <td style={{ padding: '12px 16px' }}>
+        {fu ? (
+          <span style={{
+            color: fu.urgent ? '#fca5a5' : fu.future ? '#475569' : '#fbbf24',
+            fontSize: '12px', fontWeight: 600,
+          }}>
+            {fu.label}
+          </span>
+        ) : (
+          <span style={{ color: '#1e293b', fontSize: '12px' }}>—</span>
+        )}
+      </td>
+      <td style={{ padding: '12px 16px' }}>
+        {card.value_eur ? (
+          <span style={{ color: '#4ade80', fontSize: '13px', fontWeight: 700 }}>€{card.value_eur.toLocaleString()}</span>
+        ) : (
+          <span style={{ color: '#1e293b', fontSize: '13px' }}>—</span>
+        )}
+      </td>
+      <td style={{ padding: '12px 16px' }}>
+        <span style={{ color: '#334155', fontSize: '11px' }}>{timeAgo(card.created_at)}</span>
+      </td>
+    </tr>
   );
 }
 
@@ -373,6 +643,8 @@ export default function CrmPage() {
   const [dragOverCol, setDragOverCol] = useState<CardStatus | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
+  const [filterStatus, setFilterStatus] = useState<CardStatus | 'all'>('all');
 
   const load = useCallback(async () => {
     const [cardsRes, warmupRes] = await Promise.all([
@@ -388,7 +660,6 @@ export default function CrmPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Sync selectedCard when cards refresh
   useEffect(() => {
     if (selectedCard) {
       const updated = cards.find((c) => c.id === selectedCard.id);
@@ -396,7 +667,7 @@ export default function CrmPage() {
     }
   }, [cards]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Actions ─────────────────────────────────────────────────────────────────
+  // ── Actions ──────────────────────────────────────────────────────────────────
 
   const moveCard = async (cardId: string, status: CardStatus) => {
     setCards((prev) => prev.map((c) => c.id === cardId ? { ...c, status } : c));
@@ -430,13 +701,10 @@ export default function CrmPage() {
   const sendNow = async (seq: SequenceRow) => {
     const res = await fetch('/api/sequences/send-now', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sequenceId: seq.id }) });
     if (res.ok) await load();
-    else {
-      const d = await res.json();
-      alert(d.error ?? 'Send failed');
-    }
+    else { const d = await res.json(); alert(d.error ?? 'Send failed'); }
   };
 
-  // ── Drag-and-drop ────────────────────────────────────────────────────────────
+  // ── Drag-and-drop ─────────────────────────────────────────────────────────
 
   const onDrop = (col: CardStatus) => {
     if (draggingId) moveCard(draggingId, col);
@@ -444,7 +712,7 @@ export default function CrmPage() {
     setDraggingId(null);
   };
 
-  // ── Stats ────────────────────────────────────────────────────────────────────
+  // ── Stats ──────────────────────────────────────────────────────────────────
 
   const active = cards.filter((c) => !['won', 'lost'].includes(c.status));
   const won = cards.filter((c) => c.status === 'won');
@@ -452,21 +720,29 @@ export default function CrmPage() {
   const wonValue = won.reduce((s, c) => s + (c.value_eur ?? 0), 0);
   const dueToday = cards.filter((c) => {
     const next = nextPendingSeq(c.lf_sequences ?? []);
-    if (!next) return false;
-    return new Date(next.scheduled_for) <= new Date();
+    return next ? new Date(next.scheduled_for) <= new Date() : false;
   }).length;
   const conversionRate = cards.length > 0 ? Math.round((won.length / cards.length) * 100) : 0;
 
-  // ── Filter ───────────────────────────────────────────────────────────────────
+  // ── Filter ─────────────────────────────────────────────────────────────────
 
-  const filtered = search.trim()
-    ? cards.filter((c) => c.lf_leads.name.toLowerCase().includes(search.toLowerCase()) || c.lf_leads.email?.toLowerCase().includes(search.toLowerCase()))
-    : cards;
+  const filtered = cards.filter((c) => {
+    const matchSearch = !search.trim() ||
+      c.lf_leads.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.lf_leads.email?.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = filterStatus === 'all' || c.status === filterStatus;
+    return matchSearch && matchStatus;
+  });
 
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#020609', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ color: '#475569', fontSize: '14px' }}>Loading CRM…</div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+          <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}>
+            <path d="M21 12a9 9 0 11-6.219-8.56"/>
+          </svg>
+          <p style={{ color: '#475569', fontSize: '14px' }}>Loading CRM…</p>
+        </div>
       </div>
     );
   }
@@ -474,201 +750,452 @@ export default function CrmPage() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#020609', display: 'flex', flexDirection: 'column' }}>
 
-      {/* Sticky header */}
-      <header style={{ borderBottom: '1px solid #0a1628', backgroundColor: 'rgba(2,6,9,0.96)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', position: 'sticky', top: 0, zIndex: 50, paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+      {/* ── Header ── */}
+      <header style={{
+        borderBottom: '1px solid #0a1628',
+        backgroundColor: 'rgba(2,6,9,0.97)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        position: 'sticky', top: 0, zIndex: 50,
+        paddingTop: 'env(safe-area-inset-top, 0px)',
+      }}>
         <div style={{ maxWidth: '1600px', margin: '0 auto', padding: '0 20px', height: '56px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <Link href="/" style={{ color: '#475569', fontSize: '13px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
-            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 5l-7 7 7 7" /></svg>
+          <Link href="/" style={{
+            color: '#475569', fontSize: '12px', textDecoration: 'none',
+            display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', minHeight: 'unset',
+          }}>
+            <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5M12 5l-7 7 7 7"/>
+            </svg>
             Search
           </Link>
-          <span style={{ color: '#1e293b' }}>|</span>
+          <span style={{ color: '#1e293b', fontSize: '16px' }}>|</span>
           <h1 style={{ color: '#f1f5f9', fontSize: '15px', fontWeight: 800, whiteSpace: 'nowrap' }}>CRM Pipeline</h1>
           <div style={{ flex: 1 }} />
+
           {/* Search */}
-          <div style={{ position: 'relative', maxWidth: '220px', width: '100%' }}>
-            <svg style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+          <div style={{ position: 'relative', maxWidth: '240px', width: '100%' }}>
+            <svg style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
+              width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search leads…"
-              style={{ width: '100%', backgroundColor: '#0a1628', border: '1px solid #1e293b', borderRadius: '8px', padding: '7px 10px 7px 30px', color: '#e2e8f0', fontSize: '13px', boxSizing: 'border-box' }}
+              placeholder="Search by name or email…"
+              style={{
+                width: '100%', backgroundColor: '#0a1628', border: '1px solid #1e293b',
+                borderRadius: '8px', padding: '7px 10px 7px 30px',
+                color: '#e2e8f0', fontSize: '13px', boxSizing: 'border-box' as const,
+              }}
             />
           </div>
-          <button onClick={load} style={{ background: 'none', border: '1px solid #1e293b', color: '#475569', borderRadius: '8px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer' }}>
-            ↻ Refresh
+
+          {/* View toggle */}
+          <div style={{ display: 'flex', backgroundColor: '#0a1628', border: '1px solid #1e293b', borderRadius: '8px', overflow: 'hidden' }}>
+            {(['kanban', 'list'] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setViewMode(v)}
+                title={v === 'kanban' ? 'Kanban view' : 'List view'}
+                style={{
+                  padding: '7px 10px', cursor: 'pointer', minHeight: 'unset',
+                  background: viewMode === v ? '#1e3a5f' : 'none',
+                  border: 'none', color: viewMode === v ? '#93c5fd' : '#475569',
+                  display: 'flex', alignItems: 'center',
+                  borderRight: v === 'kanban' ? '1px solid #1e293b' : 'none',
+                }}
+              >
+                {v === 'kanban' ? (
+                  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="5" height="18" rx="1"/><rect x="11" y="3" width="5" height="14" rx="1"/><rect x="19" y="3" width="2" height="10" rx="1"/>
+                  </svg>
+                ) : (
+                  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+                    <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+                  </svg>
+                )}
+              </button>
+            ))}
+          </div>
+
+          <button onClick={load} style={{
+            background: 'none', border: '1px solid #1e293b', color: '#475569',
+            borderRadius: '8px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer', minHeight: 'unset',
+          }}>
+            <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+              <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+            </svg>
           </button>
         </div>
       </header>
 
-      <div style={{ maxWidth: '1600px', margin: '0 auto', width: '100%', padding: '20px 20px 40px' }}>
+      <div style={{ maxWidth: '1600px', margin: '0 auto', width: '100%', padding: '20px 20px 60px' }}>
 
-        {/* Stats */}
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '20px' }}>
-          <StatCard label="Active Leads" value={String(active.length)} sub={`${cards.length} total`} />
-          <StatCard label="Pipeline Value" value={pipelineValue > 0 ? `€${pipelineValue.toLocaleString()}` : '—'} sub="active stages" color="#60a5fa" />
-          <StatCard label="Won Value" value={wonValue > 0 ? `€${wonValue.toLocaleString()}` : '—'} sub={`${won.length} deals closed`} color="#4ade80" />
-          <StatCard label="Conversion" value={`${conversionRate}%`} sub={`${won.length} won · ${cards.filter(c=>c.status==='lost').length} lost`} color={conversionRate > 10 ? '#4ade80' : '#f59e0b'} />
-          <StatCard
-            label="Follow-ups Due"
-            value={String(dueToday)}
-            sub="overdue or due today"
-            color={dueToday > 0 ? '#f87171' : '#4ade80'}
-          />
-        </div>
-
-        {/* Warm-up bar */}
-        {warmup && (
-          <div style={{ backgroundColor: '#0a1628', border: '1px solid #1e293b', borderRadius: '12px', padding: '12px 20px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
-            <div style={{ flex: 1, minWidth: '160px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                <span style={{ color: '#64748b', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  Domain Warm-up — Week {warmup.week}
-                </span>
-                <span style={{ color: warmup.ok ? '#4ade80' : '#f87171', fontSize: '11px', fontWeight: 700 }}>
-                  {warmup.count}/{warmup.limit} today
-                </span>
+        {/* ── Stats bar ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '16px' }}>
+          {[
+            {
+              label: 'Total Leads', value: String(cards.length),
+              sub: `${active.length} active`, color: '#f1f5f9',
+              icon: (
+                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                  <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+                </svg>
+              ),
+            },
+            {
+              label: 'Pipeline', value: pipelineValue > 0 ? `€${pipelineValue.toLocaleString()}` : '—',
+              sub: 'active stages', color: '#60a5fa',
+              icon: (
+                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                </svg>
+              ),
+            },
+            {
+              label: 'Won', value: wonValue > 0 ? `€${wonValue.toLocaleString()}` : '—',
+              sub: `${won.length} deals closed`, color: '#4ade80',
+              icon: (
+                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              ),
+            },
+            {
+              label: 'Conversion', value: `${conversionRate}%`,
+              sub: `${won.length} won · ${cards.filter((c) => c.status === 'lost').length} lost`,
+              color: conversionRate > 10 ? '#4ade80' : '#f59e0b',
+              icon: (
+                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={conversionRate > 10 ? '#4ade80' : '#f59e0b'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/>
+                  <line x1="6" y1="20" x2="6" y2="14"/>
+                </svg>
+              ),
+            },
+            {
+              label: 'Follow-ups Due', value: String(dueToday),
+              sub: 'overdue or due today', color: dueToday > 0 ? '#f87171' : '#4ade80',
+              icon: (
+                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={dueToday > 0 ? '#f87171' : '#4ade80'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <polyline points="12 6 12 12 16 14"/>
+                </svg>
+              ),
+            },
+          ].map((s) => (
+            <div key={s.label} style={{
+              backgroundColor: '#06101f', border: '1px solid #0f1f36',
+              borderRadius: '12px', padding: '14px 16px',
+              display: 'flex', alignItems: 'center', gap: '12px',
+            }}>
+              <div style={{ width: '36px', height: '36px', backgroundColor: '#0a1628', border: '1px solid #1e293b', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                {s.icon}
               </div>
-              <div style={{ height: '4px', backgroundColor: '#1e293b', borderRadius: '999px', overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${Math.min((warmup.count / warmup.limit) * 100, 100)}%`, backgroundColor: warmup.ok ? '#3b82f6' : '#ef4444', borderRadius: '999px' }} />
+              <div>
+                <p style={{ color: '#334155', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>{s.label}</p>
+                <p style={{ color: s.color, fontSize: '18px', fontWeight: 800, lineHeight: 1 }}>{s.value}</p>
+                <p style={{ color: '#334155', fontSize: '10px', marginTop: '2px' }}>{s.sub}</p>
               </div>
             </div>
-            <span style={{ color: '#334155', fontSize: '11px', whiteSpace: 'nowrap' }}>
-              Next ramp in {warmup.daysUntilRamp}d → {warmup.nextLimit}/day
-            </span>
-            {!warmup.ok && (
-              <span style={{ backgroundColor: '#450a0a', border: '1px solid #7f1d1d', borderRadius: '6px', padding: '4px 10px', color: '#fca5a5', fontSize: '11px', fontWeight: 700 }}>
-                Limit reached — resets midnight UTC
+          ))}
+        </div>
+
+        {/* ── Status filter tabs + warmup ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+          {/* Status pills */}
+          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setFilterStatus('all')}
+              style={{
+                backgroundColor: filterStatus === 'all' ? '#1e3a5f' : 'transparent',
+                border: `1px solid ${filterStatus === 'all' ? '#3b82f6' : '#1e293b'}`,
+                color: filterStatus === 'all' ? '#93c5fd' : '#475569',
+                borderRadius: '999px', padding: '5px 12px', fontSize: '12px', fontWeight: 700,
+                cursor: 'pointer', minHeight: 'unset',
+              }}
+            >
+              All ({cards.length})
+            </button>
+            {COLUMNS.map((col) => {
+              const count = cards.filter((c) => c.status === col.key).length;
+              const active = filterStatus === col.key;
+              return (
+                <button
+                  key={col.key}
+                  onClick={() => setFilterStatus(active ? 'all' : col.key)}
+                  style={{
+                    backgroundColor: active ? col.bg : 'transparent',
+                    border: `1px solid ${active ? col.border : '#1e293b'}`,
+                    color: active ? col.color : '#475569',
+                    borderRadius: '999px', padding: '5px 12px', fontSize: '12px', fontWeight: 700,
+                    cursor: 'pointer', minHeight: 'unset',
+                    display: 'inline-flex', alignItems: 'center', gap: '5px',
+                  }}
+                >
+                  <ColumnIcon status={col.key} size={10} />
+                  {col.label} {count > 0 && `(${count})`}
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ flex: 1 }} />
+
+          {/* Warm-up pill */}
+          {warmup && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              backgroundColor: '#06101f', border: '1px solid #0f1f36',
+              borderRadius: '999px', padding: '6px 14px',
+            }}>
+              <div style={{ width: '80px', height: '4px', backgroundColor: '#1e293b', borderRadius: '999px', overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%',
+                  width: `${Math.min((warmup.count / warmup.limit) * 100, 100)}%`,
+                  backgroundColor: warmup.ok ? '#3b82f6' : '#ef4444',
+                  borderRadius: '999px',
+                }} />
+              </div>
+              <span style={{ color: warmup.ok ? '#60a5fa' : '#f87171', fontSize: '11px', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                {warmup.count}/{warmup.limit} today · Wk {warmup.week}
               </span>
-            )}
+              {!warmup.ok && (
+                <span style={{ color: '#fca5a5', fontSize: '10px', fontWeight: 700 }}>LIMIT</span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── Empty state ── */}
+        {cards.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '100px 0', color: '#334155' }}>
+            <div style={{ width: '64px', height: '64px', backgroundColor: '#0a1628', border: '1px solid #1e293b', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+              <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="#1e3a5f" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+              </svg>
+            </div>
+            <p style={{ fontSize: '18px', fontWeight: 800, color: '#475569', marginBottom: '8px' }}>No leads in CRM yet</p>
+            <p style={{ fontSize: '14px', marginBottom: '24px' }}>Go to search and click <strong style={{ color: '#60a5fa' }}>Add to CRM &amp; Send</strong> on a lead.</p>
+            <Link href="/" style={{
+              backgroundColor: '#1e3a5f', border: '1px solid #3b82f6', color: '#93c5fd',
+              borderRadius: '10px', padding: '12px 28px', fontSize: '14px', fontWeight: 700,
+              textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px',
+            }}>
+              <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              Go to Search
+            </Link>
           </div>
         )}
 
-        {/* Kanban */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(230px, 1fr))', gap: '10px', overflowX: 'auto', minHeight: '60vh' }}>
-          {COLUMNS.map((col) => {
-            const colCards = filtered.filter((c) => c.status === col.key);
-            const colValue = colCards.reduce((s, c) => s + (c.value_eur ?? 0), 0);
-            const isOver = dragOverCol === col.key;
+        {/* ── List view ── */}
+        {viewMode === 'list' && filtered.length > 0 && (
+          <div style={{ backgroundColor: '#06101f', border: '1px solid #0f1f36', borderRadius: '14px', overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' as const }}>
+              <colgroup>
+                <col style={{ width: '280px' }} /><col style={{ width: '140px' }} />
+                <col style={{ width: '120px' }} /><col style={{ width: '180px' }} />
+                <col style={{ width: '100px' }} /><col style={{ width: '100px' }} />
+              </colgroup>
+              <thead>
+                <tr style={{ backgroundColor: '#040d1a', borderBottom: '1px solid #0a1628' }}>
+                  {['Lead', 'Stage', 'Score', 'Follow-up', 'Value', 'Added'].map((h) => (
+                    <th key={h} style={{
+                      textAlign: 'left', padding: '10px 16px',
+                      fontSize: '10px', fontWeight: 700, color: '#334155',
+                      textTransform: 'uppercase', letterSpacing: '0.08em',
+                    }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((card) => (
+                  <ListRow key={card.id} card={card} onSelect={() => setSelectedCard(card)} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-            return (
-              <div
-                key={col.key}
-                onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.key); }}
-                onDrop={() => onDrop(col.key)}
-                onDragLeave={() => setDragOverCol(null)}
-                style={{
-                  backgroundColor: isOver ? col.bg : '#04080f',
-                  border: `1px solid ${isOver ? col.border : '#0d1929'}`,
-                  borderRadius: '14px', padding: '12px',
-                  transition: 'background 0.15s, border-color 0.15s',
-                }}
-              >
-                {/* Column header */}
-                <div style={{ marginBottom: '10px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ color: col.color, fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <ColumnIcon status={col.key} size={12} /> {col.label}
-                    </span>
-                    <span style={{ backgroundColor: col.bg, border: `1px solid ${col.border}`, color: col.color, borderRadius: '999px', padding: '2px 7px', fontSize: '11px', fontWeight: 800 }}>
-                      {colCards.length}
-                    </span>
-                  </div>
-                  {colValue > 0 && (
-                    <p style={{ color: '#475569', fontSize: '11px' }}>€{colValue.toLocaleString()}</p>
-                  )}
-                </div>
+        {/* ── Kanban view ── */}
+        {viewMode === 'kanban' && cards.length > 0 && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(220px, 1fr))', gap: '10px', overflowX: 'auto', minHeight: '60vh' }}>
+            {COLUMNS.map((col) => {
+              const colCards = filtered.filter((c) => c.status === col.key);
+              const colValue = colCards.reduce((s, c) => s + (c.value_eur ?? 0), 0);
+              const isOver = dragOverCol === col.key;
 
-                {/* Cards */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {colCards.map((card) => {
-                    const lead = card.lf_leads;
-                    const nextSeq = nextPendingSeq(card.lf_sequences ?? []);
-                    const fu = nextSeq ? followUpLabel(nextSeq) : null;
-                    const allDone = (card.lf_sequences ?? []).length > 0 && (card.lf_sequences ?? []).every((s) => s.status !== 'pending');
-
-                    return (
-                      <div
-                        key={card.id}
-                        draggable
-                        onDragStart={() => setDraggingId(card.id)}
-                        onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
-                        onClick={() => setSelectedCard(card)}
-                        style={{
-                          backgroundColor: '#0a1628',
-                          border: `1px solid ${fu?.urgent ? '#7f1d1d' : '#1e293b'}`,
-                          borderRadius: '12px', padding: '12px',
-                          cursor: 'pointer',
-                          opacity: draggingId === card.id ? 0.4 : 1,
-                          transition: 'opacity 0.15s, border-color 0.15s',
-                        }}
-                      >
-                        {/* Name */}
-                        <p style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 700, lineHeight: 1.3, marginBottom: '3px' }}>{lead.name}</p>
-
-                        {/* Email */}
-                        {lead.email && (
-                          <p style={{ color: '#334155', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '8px' }}>
-                            {lead.email}
-                          </p>
-                        )}
-
-                        {/* Follow-up or done badge */}
-                        {fu ? (
-                          <div style={{ backgroundColor: fu.urgent ? '#450a0a' : fu.future ? '#0f172a' : '#1c1208', border: `1px solid ${fu.urgent ? '#7f1d1d' : fu.future ? '#1e293b' : '#78350f'}`, borderRadius: '6px', padding: '3px 8px', marginBottom: '8px', fontSize: '10px', fontWeight: 700, color: fu.urgent ? '#fca5a5' : fu.future ? '#475569' : '#fbbf24' }}>
-                            {fu.label}
-                          </div>
-                        ) : allDone ? (
-                          <div style={{ fontSize: '10px', color: '#166534', marginBottom: '8px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}>
-                            <svg width={9} height={9} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                            Sequence complete
-                          </div>
-                        ) : null}
-
-                        {/* Value */}
-                        {card.value_eur && (
-                          <p style={{ color: '#4ade80', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>€{card.value_eur.toLocaleString()}</p>
-                        )}
-
-                        {/* Notes preview */}
-                        {card.notes && (
-                          <p style={{ color: '#475569', fontSize: '10px', lineHeight: 1.4, marginBottom: '4px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' } as React.CSSProperties}>
-                            {card.notes}
-                          </p>
-                        )}
-
-                        <p style={{ color: '#1e293b', fontSize: '10px', textAlign: 'right' }}>{timeAgo(card.created_at)}</p>
-                      </div>
-                    );
-                  })}
-
-                  {colCards.length === 0 && (
-                    <div style={{ color: '#0d1929', fontSize: '12px', textAlign: 'center', paddingTop: '32px', userSelect: 'none' }}>
-                      Drop here
+              return (
+                <div
+                  key={col.key}
+                  onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.key); }}
+                  onDrop={() => onDrop(col.key)}
+                  onDragLeave={() => setDragOverCol(null)}
+                  style={{
+                    backgroundColor: isOver ? col.bg : '#04080f',
+                    border: `1px solid ${isOver ? col.border : '#0d1929'}`,
+                    borderRadius: '14px', padding: '12px',
+                    transition: 'background 0.15s, border-color 0.15s',
+                  }}
+                >
+                  {/* Column header */}
+                  <div style={{ marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{
+                        color: col.color, fontSize: '11px', fontWeight: 800,
+                        textTransform: 'uppercase', letterSpacing: '0.08em',
+                        display: 'flex', alignItems: 'center', gap: '5px',
+                      }}>
+                        <ColumnIcon status={col.key} size={11} /> {col.label}
+                      </span>
+                      <span style={{
+                        backgroundColor: col.bg, border: `1px solid ${col.border}`,
+                        color: col.color, borderRadius: '999px',
+                        padding: '1px 8px', fontSize: '11px', fontWeight: 800,
+                      }}>
+                        {colCards.length}
+                      </span>
                     </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                    {colValue > 0 && (
+                      <p style={{ color: '#334155', fontSize: '10px', fontWeight: 600 }}>€{colValue.toLocaleString()}</p>
+                    )}
+                  </div>
 
-        {cards.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '80px 0', color: '#334155' }}>
-            <p style={{ fontSize: '20px', fontWeight: 800, marginBottom: '8px', color: '#475569' }}>No leads in CRM yet</p>
-            <p style={{ fontSize: '14px', marginBottom: '24px' }}>Go to search and click <strong style={{ color: '#60a5fa' }}>Add to CRM & Send</strong> on a lead.</p>
-            <Link href="/" style={{ backgroundColor: '#1e3a5f', border: '1px solid #3b82f6', color: '#93c5fd', borderRadius: '12px', padding: '12px 28px', fontSize: '14px', fontWeight: 700, textDecoration: 'none', display: 'inline-block' }}>
-              ← Go to Search
-            </Link>
+                  {/* Drop zone divider */}
+                  {isOver && (
+                    <div style={{ height: '2px', backgroundColor: col.accent, borderRadius: '999px', marginBottom: '10px' }} />
+                  )}
+
+                  {/* Cards */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {colCards.map((card) => {
+                      const lead = card.lf_leads;
+                      const nextSeq = nextPendingSeq(card.lf_sequences ?? []);
+                      const fu = nextSeq ? followUpLabel(nextSeq) : null;
+                      const allDone = (card.lf_sequences ?? []).length > 0 &&
+                        (card.lf_sequences ?? []).every((s) => s.status !== 'pending');
+
+                      return (
+                        <div
+                          key={card.id}
+                          draggable
+                          onDragStart={() => setDraggingId(card.id)}
+                          onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
+                          onClick={() => setSelectedCard(card)}
+                          style={{
+                            backgroundColor: '#07111f',
+                            border: `1px solid ${fu?.urgent ? '#7f1d1d' : '#122033'}`,
+                            borderRadius: '12px', padding: '12px',
+                            cursor: 'pointer',
+                            opacity: draggingId === card.id ? 0.35 : 1,
+                            transition: 'opacity 0.15s, border-color 0.15s, transform 0.1s',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.borderColor = col.border; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.borderColor = fu?.urgent ? '#7f1d1d' : '#122033'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                        >
+                          {/* Score badge + name */}
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '6px', marginBottom: '6px' }}>
+                            <p style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: 700, lineHeight: 1.3, flex: 1, minWidth: 0 }}>
+                              {lead.name}
+                            </p>
+                            <span style={{
+                              backgroundColor: scoreBg(lead.weakness_score),
+                              border: `1px solid ${scoreBorder(lead.weakness_score)}`,
+                              color: scoreColor(lead.weakness_score),
+                              borderRadius: '6px', padding: '1px 6px',
+                              fontSize: '10px', fontWeight: 800, flexShrink: 0,
+                              whiteSpace: 'nowrap',
+                            }}>
+                              {lead.weakness_score}/10
+                            </span>
+                          </div>
+
+                          {/* Email */}
+                          {lead.email && (
+                            <p style={{ color: '#334155', fontSize: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '8px' }}>
+                              {lead.email}
+                            </p>
+                          )}
+
+                          {/* Follow-up or done badge */}
+                          {fu ? (
+                            <div style={{
+                              backgroundColor: fu.urgent ? '#450a0a' : fu.future ? '#080f1e' : '#1c1208',
+                              border: `1px solid ${fu.urgent ? '#7f1d1d' : fu.future ? '#1e293b' : '#78350f'}`,
+                              borderRadius: '6px', padding: '3px 8px', marginBottom: '8px',
+                              fontSize: '10px', fontWeight: 700,
+                              color: fu.urgent ? '#fca5a5' : fu.future ? '#334155' : '#fbbf24',
+                              display: 'flex', alignItems: 'center', gap: '4px',
+                            }}>
+                              {fu.urgent && (
+                                <svg width={9} height={9} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                                  <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                                </svg>
+                              )}
+                              {fu.label}
+                            </div>
+                          ) : allDone ? (
+                            <div style={{ fontSize: '10px', color: '#166534', marginBottom: '8px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                              <svg width={9} height={9} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12"/>
+                              </svg>
+                              Sequence complete
+                            </div>
+                          ) : null}
+
+                          {/* Value + notes */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              {card.value_eur && (
+                                <span style={{ color: '#4ade80', fontSize: '11px', fontWeight: 700 }}>€{card.value_eur.toLocaleString()}</span>
+                              )}
+                              {card.notes && (
+                                <span title={card.notes} style={{ color: '#334155' }}>
+                                  <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+                                  </svg>
+                                </span>
+                              )}
+                            </div>
+                            <span style={{ color: '#1e293b', fontSize: '10px' }}>{timeAgo(card.created_at)}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {colCards.length === 0 && (
+                      <div style={{
+                        color: '#0d1929', fontSize: '11px', textAlign: 'center',
+                        padding: '32px 16px', userSelect: 'none',
+                        border: `2px dashed ${isOver ? col.border : 'transparent'}`,
+                        borderRadius: '10px', transition: 'border-color 0.15s',
+                      }}>
+                        {isOver ? 'Drop here' : 'Empty'}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
 
-      {/* Detail modal */}
+      {/* ── Detail drawer ── */}
       {selectedCard && (
-        <DetailModal
+        <DetailDrawer
           card={selectedCard}
           onClose={() => setSelectedCard(null)}
-          onMove={async (status) => { await moveCard(selectedCard.id, status); setSelectedCard((p) => p ? { ...p, status } : null); }}
+          onMove={async (status) => { await moveCard(selectedCard.id, status); }}
           onDelete={() => deleteCard(selectedCard.id)}
           onUnsubscribe={() => unsubscribe(selectedCard.id)}
           onSendNow={sendNow}

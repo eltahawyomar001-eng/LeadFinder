@@ -106,3 +106,14 @@ select {
   to { transform: rotate(360deg); }
 }
 .animate-spin { animation: spin 0.9s linear infinite; }
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+@keyframes slideInUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.slide-in-up { animation: slideInUp 0.2s ease-out forwards; }
