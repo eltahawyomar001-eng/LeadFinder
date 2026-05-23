@@ -78,10 +78,10 @@ function formatAddress(tags: Record<string, string>): string {
       ? `${tags['addr:street']} ${tags['addr:housenumber']}`
       : tags['addr:street'],
     tags['addr:postcode'],
-    tags['addr:city'],
-    tags['addr:country'] ?? 'Deutschland',
+    tags['addr:city'] ?? tags['addr:town'] ?? tags['addr:village'],
+    tags['addr:country'],
   ].filter(Boolean);
-  return parts.join(', ') || 'Adresse nicht verfügbar';
+  return parts.join(', ') || 'Address not available';
 }
 
 function getPhone(tags: Record<string, string>): string | null {

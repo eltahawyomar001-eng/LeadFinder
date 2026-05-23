@@ -50,16 +50,21 @@ export async function POST(req: NextRequest) {
     const { lat, lng } = cityData;
     const radiusM = radius * 1000;
 
-    // Run all sources in parallel
-    const results = await Promise.allSettled([
+    // Run all sources in parallel — German-only scrapers only when country is 'de'
+    const promises: Promise<Lead[]>[] = [
       searchOverpass(category, lat, lng, radiusM, undefined, countryLang),
       searchHere(category, lat, lng, radiusM),
       searchYelp(category, lat, lng, radiusM),
       searchFoursquare(category, lat, lng, radiusM),
-      searchDasOertliche(category, city),
-      searchGelbeSeiten(category, city),
-      searchElevenEighty(category, city),
-    ]);
+    ];
+    if (country === 'de') {
+      promises.push(
+        searchDasOertliche(category, city),
+        searchGelbeSeiten(category, city),
+        searchElevenEighty(category, city),
+      );
+    }
+    const results = await Promise.allSettled(promises);
 
     // Flatten all successful results
     const allLeads: Lead[] = [];

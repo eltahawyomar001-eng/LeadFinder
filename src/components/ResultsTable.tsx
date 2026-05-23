@@ -45,12 +45,12 @@ function SendBtn({ lead, contacted, onContacted }: { lead: Lead; contacted?: boo
 
   if (contacted) {
     return (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#4ade80', fontSize: '11px', fontWeight: 600 }}>
+      <a href="/crm" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#4ade80', fontSize: '11px', fontWeight: 600, textDecoration: 'none' }}>
         <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="20 6 9 17 4 12"/>
         </svg>
-        Sent
-      </span>
+        In CRM
+      </a>
     );
   }
 
@@ -61,10 +61,10 @@ function SendBtn({ lead, contacted, onContacted }: { lead: Lead; contacted?: boo
         setSending(true);
         setError(false);
         try {
-          const res = await fetch('/api/send-email', {
+          const res = await fetch('/api/crm/add', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ to: lead.email, subject: lead.email_subject ?? '', body: lead.email_body ?? '' }),
+            body: JSON.stringify({ lead }),
           });
           if (!res.ok) throw new Error();
           if (onContacted) onContacted(lead.place_id);
@@ -75,7 +75,7 @@ function SendBtn({ lead, contacted, onContacted }: { lead: Lead; contacted?: boo
         }
       }}
       disabled={sending}
-      title={error ? 'Send failed — retry' : 'Send email'}
+      title={error ? 'Send failed — retry' : 'Send & add to CRM'}
       style={{
         backgroundColor: error ? 'rgba(127,29,29,0.3)' : 'rgba(21,128,61,0.15)',
         border: `1px solid ${error ? '#7f1d1d' : '#166534'}`,
