@@ -2,84 +2,145 @@
 
 import { useState } from 'react';
 import type { Lead } from '@/types';
-import { CopyIcon, CheckIcon, WhatsAppIcon } from './icons';
+import { CopyIcon, CheckIcon } from './icons';
 
 interface Props {
   lead: Lead;
   onClose: () => void;
 }
 
-export default function MessageModal({ lead, onClose }: Props) {
-  const [copied, setCopied] = useState(false);
-
-  const copy = async () => {
-    await navigator.clipboard.writeText(lead.whatsapp_message);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+function CopyBtn({ text, label }: { text: string; label: string }) {
+  const [done, setDone] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(text);
+    setDone(true);
+    setTimeout(() => setDone(false), 1800);
   };
+  return (
+    <button
+      onClick={copy}
+      style={{
+        backgroundColor: done ? '#166534' : '#1e293b',
+        border: `1px solid ${done ? '#166534' : '#334155'}`,
+        color: done ? '#86efac' : '#f1f5f9',
+        borderRadius: '10px',
+        padding: '10px 16px',
+        fontSize: '13px',
+        fontWeight: 600,
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '7px',
+        transition: 'all 0.15s',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {done ? <CheckIcon size={15} /> : <CopyIcon size={15} />}
+      {done ? 'Copied!' : label}
+    </button>
+  );
+}
 
-  const whatsappWithMessage = lead.whatsapp_link
-    ? `${lead.whatsapp_link}?text=${encodeURIComponent(lead.whatsapp_message)}`
-    : null;
+export default function MessageModal({ lead, onClose }: Props) {
+  const subject = lead.email_subject ?? '';
+  const body = lead.email_body ?? '';
+
+  const mailtoHref = `mailto:${lead.email ?? ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
   return (
     <div
-      style={{ backgroundColor: 'rgba(0,0,0,0.85)' }}
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        backgroundColor: 'rgba(0,0,0,0.85)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '16px',
+      }}
     >
-      <div
-        style={{ backgroundColor: '#1e293b', border: '1px solid #334155' }}
-        className="rounded-2xl w-full max-w-lg shadow-2xl"
-      >
+      <div style={{
+        backgroundColor: '#1e293b',
+        border: '1px solid #334155',
+        borderRadius: '20px',
+        width: '100%',
+        maxWidth: '560px',
+        maxHeight: '90vh',
+        display: 'flex',
+        flexDirection: 'column',
+        boxShadow: '0 25px 60px rgba(0,0,0,0.6)',
+      }}>
         {/* Header */}
-        <div
-          style={{ borderBottom: '1px solid #334155' }}
-          className="flex items-center justify-between p-5"
-        >
+        <div style={{ borderBottom: '1px solid #334155', padding: '18px 20px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
           <div>
-            <p style={{ color: '#94a3b8' }} className="text-xs font-semibold uppercase tracking-widest mb-1">
-              Your WhatsApp Pitch
+            <p style={{ color: '#64748b', fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '4px' }}>
+              Email Pitch
             </p>
-            <h3 style={{ color: '#f1f5f9' }} className="font-bold text-lg leading-tight">
+            <h3 style={{ color: '#f1f5f9', fontWeight: 700, fontSize: '17px', lineHeight: 1.2, margin: 0 }}>
               {lead.name}
             </h3>
-            {lead.phone && (
-              <p style={{ color: '#64748b' }} className="text-xs mt-1 font-mono">
-                {lead.phone}
+            {lead.email && (
+              <p style={{ color: '#34d399', fontSize: '13px', fontFamily: 'monospace', marginTop: '4px' }}>
+                {lead.email}
+              </p>
+            )}
+            {!lead.email && (
+              <p style={{ color: '#475569', fontSize: '12px', marginTop: '4px' }}>
+                No email found — add recipient manually
               </p>
             )}
           </div>
           <button
             onClick={onClose}
-            style={{ color: '#64748b' }}
-            className="hover:text-white transition-colors p-1"
+            style={{ color: '#475569', background: 'none', border: 'none', cursor: 'pointer', padding: '4px', flexShrink: 0, lineHeight: 1 }}
           >
             <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
         </div>
 
-        {/* Message */}
-        <div className="p-5">
-          <p style={{ color: '#94a3b8' }} className="text-xs mb-3 font-medium">
-            Personalized in German — from Omar Rageh, ready to send
+        {/* Subject */}
+        <div style={{ padding: '16px 20px 0' }}>
+          <p style={{ color: '#475569', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>
+            Subject
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input
+              readOnly
+              value={subject}
+              style={{
+                flex: 1,
+                backgroundColor: '#0f172a',
+                border: '1px solid #334155',
+                color: '#e2e8f0',
+                borderRadius: '8px',
+                padding: '9px 12px',
+                fontSize: '13px',
+                outline: 'none',
+                fontFamily: 'inherit',
+              }}
+            />
+            <CopyBtn text={subject} label="Copy" />
+          </div>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: '14px 20px', flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <p style={{ color: '#475569', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>
+            Body
           </p>
           <textarea
             readOnly
-            value={lead.whatsapp_message}
-            rows={10}
+            value={body}
             style={{
+              flex: 1,
+              minHeight: '220px',
               backgroundColor: '#0f172a',
               border: '1px solid #334155',
               color: '#e2e8f0',
-              width: '100%',
               borderRadius: '10px',
               padding: '12px',
               fontSize: '13px',
-              lineHeight: '1.7',
+              lineHeight: 1.7,
               resize: 'none',
               outline: 'none',
               fontFamily: 'inherit',
@@ -88,80 +149,33 @@ export default function MessageModal({ lead, onClose }: Props) {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3 p-5 pt-0">
-          <button
-            onClick={copy}
+        <div style={{ padding: '0 20px 20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <CopyBtn text={body} label="Copy Body" />
+          <a
+            href={mailtoHref}
             style={{
               flex: 1,
-              backgroundColor: copied ? '#166534' : '#1e293b',
-              border: '1px solid #334155',
-              color: copied ? '#86efac' : '#f1f5f9',
+              minWidth: '140px',
+              backgroundColor: lead.email ? '#15803d' : '#1e3a2e',
+              color: '#fff',
               borderRadius: '10px',
               padding: '10px 16px',
               fontSize: '14px',
-              fontWeight: 600,
-              cursor: 'pointer',
+              fontWeight: 700,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '8px',
-              transition: 'all 0.15s',
+              textDecoration: 'none',
+              border: `1px solid ${lead.email ? '#166534' : '#1a4a32'}`,
             }}
           >
-            {copied ? (
-              <>
-                <CheckIcon size={16} />
-                Copied!
-              </>
-            ) : (
-              <>
-                <CopyIcon size={16} />
-                Copy Message
-              </>
-            )}
-          </button>
-
-          {whatsappWithMessage ? (
-            <a
-              href={whatsappWithMessage}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                flex: 1,
-                backgroundColor: '#25D366',
-                color: '#fff',
-                borderRadius: '10px',
-                padding: '10px 16px',
-                fontSize: '14px',
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                textDecoration: 'none',
-              }}
-            >
-              <WhatsAppIcon size={16} />
-              Send on WhatsApp
-            </a>
-          ) : (
-            <div
-              style={{
-                flex: 1,
-                backgroundColor: '#1e293b',
-                border: '1px solid #334155',
-                color: '#475569',
-                borderRadius: '10px',
-                padding: '10px 16px',
-                fontSize: '14px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              No phone number
-            </div>
-          )}
+            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+              <polyline points="22,6 12,13 2,6" />
+            </svg>
+            {lead.email ? `Send to ${lead.email}` : 'Open in Email Client'}
+          </a>
         </div>
       </div>
     </div>
