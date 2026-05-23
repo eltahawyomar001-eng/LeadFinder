@@ -1,3 +1,4 @@
+import { promises as dnsPromises } from 'dns';
 import type { PitchLang } from '@/types';
 
 export interface WebsiteAnalysis {
@@ -90,15 +91,56 @@ async function fetchHtml(url: string, timeoutMs = 7_000): Promise<string> {
   );
 }
 
-// Try HTTPS first, fallback to HTTP if the host rejects HTTPS
+// Try direct fetch, then ScraperAPI (if key configured), then HTTP fallback
 async function fetchHtmlWithFallback(url: string, timeoutMs = 7_000): Promise<string> {
   try {
     return await fetchHtml(url, timeoutMs);
   } catch {
+    // If direct fetch failed, try ScraperAPI — handles blocked IPs / bot protection
+    const scraperKey = process.env.SCRAPERAPI_KEY;
+    if (scraperKey) {
+      try {
+        const proxyUrl = `https://api.scraperapi.com?api_key=${scraperKey}&url=${encodeURIComponent(url)}&render=false`;
+        return await fetchHtml(proxyUrl, timeoutMs + 8_000);
+      } catch { /* ScraperAPI also failed, try HTTP */ }
+    }
     if (url.startsWith('https://')) {
       return await fetchHtml(url.replace('https://', 'http://'), timeoutMs);
     }
     throw new Error('fetch failed');
+  }
+}
+
+// ─── Domain email guessing ────────────────────────────────────────────────────
+
+// Common business email prefixes in priority order (German-first, then international)
+const GUESS_PREFIXES = [
+  'info', 'kontakt', 'contact', 'hallo', 'mail',
+  'office', 'anfrage', 'service', 'hello', 'team',
+];
+
+// Verify the domain actually receives email (has MX records) before guessing
+async function hasMxRecords(domain: string): Promise<boolean> {
+  try {
+    const records = await dnsPromises.resolveMx(domain);
+    return records.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+async function guessEmailFromDomain(website: string): Promise<string | null> {
+  try {
+    const domain = new URL(website).hostname.replace(/^www\./, '');
+    if (!domain || domain.split('.').length < 2) return null;
+    const hasMx = await hasMxRecords(domain);
+    if (!hasMx) return null;
+    // Return the highest-priority prefix for this domain's language
+    const isGerman = domain.endsWith('.de') || domain.endsWith('.at') || domain.endsWith('.ch');
+    const prefix = isGerman ? 'info' : GUESS_PREFIXES[0];
+    return `${prefix}@${domain}`;
+  } catch {
+    return null;
   }
 }
 
@@ -475,8 +517,11 @@ export async function analyzeWebsite(url: string): Promise<WebsiteAnalysis> {
     const ranked = [...new Set(allEmails)].sort((a, b) => scoreEmail(b) - scoreEmail(a));
     const rankedPhones = [...new Set(allPhones)];
 
+    // Last resort: no email found on any page — guess from domain if MX records exist
+    const foundEmail = ranked[0] ?? await guessEmailFromDomain(url);
+
     return {
-      email: ranked[0] ?? null,
+      email: foundEmail ?? null,
       phone: rankedPhones[0] ?? null,
       builder, isModern, hasViewport,
       isHttps: url.startsWith('https://'),

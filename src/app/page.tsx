@@ -36,7 +36,10 @@ export default function HomePage() {
   const [nextPageToken, setNextPageToken] = useState<string | undefined>(undefined);
   const [loadingMore, setLoadingMore] = useState(false);
   const [searchState, setSearchState] = useState<{ category: string; location: string; radius: number; source: Source } | null>(null);
-  const [mobileOnly, setMobileOnly] = useState(false);
+  const [minScore, setMinScore] = useState(0);
+  const [fEmail, setFEmail] = useState(false);
+  const [fPhone, setFPhone] = useState(false);
+  const [fWebsite, setFWebsite] = useState(false);
   const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null);
   const [contactedIds, setContactedIds] = useState(new Set<string>());
   const [activeCountry, setActiveCountry] = useState<Country>('de');
@@ -233,11 +236,17 @@ export default function HomePage() {
   // ── derived state ─────────────────────────────────────────────────────────
 
   const allLeads: Lead[] = result?.leads ?? [];
-  const filteredLeads = useMemo(
-    () => mobileOnly ? allLeads.filter((l) => !!l.email) : allLeads,
-    [allLeads, mobileOnly]
-  );
-  const emailCount = allLeads.filter((l) => !!l.email).length;
+  const filteredLeads = useMemo(() => {
+    let leads = allLeads.filter((l) => l.business_status !== 'CLOSED_PERMANENTLY');
+    if (minScore > 0) leads = leads.filter((l) => l.weakness_score >= minScore);
+    if (fEmail)   leads = leads.filter((l) => !!l.email);
+    if (fPhone)   leads = leads.filter((l) => !!l.phone);
+    if (fWebsite) leads = leads.filter((l) => !!l.website);
+    return leads;
+  }, [allLeads, minScore, fEmail, fPhone, fWebsite]);
+  const emailCount   = allLeads.filter((l) => !!l.email).length;
+  const phoneCount   = allLeads.filter((l) => !!l.phone).length;
+  const websiteCount = allLeads.filter((l) => !!l.website).length;
 
   const isGermanyScan = searchState?.location === '__ALL__';
 
@@ -353,47 +362,73 @@ export default function HomePage() {
           <div className="fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <StatsBar data={result} />
 
-            {/* Toolbar */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                <span style={{ color: '#475569', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                  Results — sorted by priority {loading && scanProgress ? `(${scanProgress.current}/${scanProgress.total} states)` : ''}
-                </span>
-                {/* Email filter toggle */}
-                <button
-                  onClick={() => setMobileOnly(!mobileOnly)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    backgroundColor: mobileOnly ? '#052e16' : '#1e293b',
-                    border: `1px solid ${mobileOnly ? '#166534' : '#334155'}`,
-                    color: mobileOnly ? '#4ade80' : '#94a3b8',
-                    borderRadius: '999px',
-                    padding: '5px 12px',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    minHeight: 'unset',
-                  }}
-                >
-                  <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                    <polyline points="22,6 12,13 2,6" />
-                  </svg>
-                  With email ({emailCount})
-                </button>
+            {/* Filter bar */}
+            <div style={{ backgroundColor: '#06101f', border: '1px solid #0f1f36', borderRadius: '14px', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {/* Row 1: score thresholds + export */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  <span style={{ color: '#334155', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: '4px' }}>
+                    Min score
+                  </span>
+                  {([0, 3, 5, 7] as const).map((s) => (
+                    <button key={s} onClick={() => setMinScore(s)} style={{
+                      backgroundColor: minScore === s ? '#1e3a5f' : 'transparent',
+                      border: `1px solid ${minScore === s ? '#3b82f6' : '#1e293b'}`,
+                      color: minScore === s ? '#93c5fd' : '#475569',
+                      borderRadius: '999px', padding: '3px 10px',
+                      fontSize: '11px', fontWeight: 700, cursor: 'pointer', minHeight: 'unset',
+                    }}>
+                      {s === 0 ? 'All' : `${s}+`}
+                    </button>
+                  ))}
+                  <span style={{ color: '#1e293b', fontSize: '12px', marginLeft: '4px' }}>|</span>
+                  <span style={{ color: '#334155', fontSize: '11px', fontWeight: 600 }}>
+                    {loading && scanProgress ? `${scanProgress.current}/${scanProgress.total} states scanned` : `${filteredLeads.length} of ${allLeads.length} shown`}
+                  </span>
+                </div>
+                <ExportButton leads={filteredLeads} />
               </div>
-              <ExportButton leads={filteredLeads} />
+
+              {/* Row 2: contact / website quick filters */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                <span style={{ color: '#334155', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: '4px' }}>
+                  Show only
+                </span>
+                {[
+                  { label: `Email (${emailCount})`, active: fEmail, toggle: () => setFEmail(!fEmail),
+                    icon: <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> },
+                  { label: `Phone (${phoneCount})`, active: fPhone, toggle: () => setFPhone(!fPhone),
+                    icon: <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg> },
+                  { label: `Website (${websiteCount})`, active: fWebsite, toggle: () => setFWebsite(!fWebsite),
+                    icon: <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg> },
+                ].map(({ label, active, toggle, icon }) => (
+                  <button key={label} onClick={toggle} style={{
+                    display: 'flex', alignItems: 'center', gap: '5px',
+                    backgroundColor: active ? '#052e16' : 'transparent',
+                    border: `1px solid ${active ? '#166534' : '#1e293b'}`,
+                    color: active ? '#4ade80' : '#475569',
+                    borderRadius: '999px', padding: '3px 10px',
+                    fontSize: '11px', fontWeight: 600, cursor: 'pointer', minHeight: 'unset',
+                  }}>
+                    {icon}{label}
+                  </button>
+                ))}
+                {(minScore > 0 || fEmail || fPhone || fWebsite) && (
+                  <button onClick={() => { setMinScore(0); setFEmail(false); setFPhone(false); setFWebsite(false); }} style={{
+                    background: 'none', border: 'none', color: '#475569', fontSize: '11px',
+                    cursor: 'pointer', minHeight: 'unset', textDecoration: 'underline', padding: '3px 6px',
+                  }}>
+                    Clear filters
+                  </button>
+                )}
+              </div>
             </div>
 
             {filteredLeads.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '60px 0', color: '#475569' }}>
-                <p style={{ fontSize: '16px', fontWeight: 600 }}>
-                  {mobileOnly ? 'No emails found in these results yet' : 'No businesses found'}
-                </p>
+                <p style={{ fontSize: '16px', fontWeight: 600 }}>No leads match these filters</p>
                 <p style={{ fontSize: '13px', marginTop: '6px' }}>
-                  {mobileOnly ? 'Turn off the "With email" filter — then click Find Email on leads with websites' : 'Try a different category or increase the radius'}
+                  Try lowering the minimum score or removing a filter
                 </p>
               </div>
             ) : (
