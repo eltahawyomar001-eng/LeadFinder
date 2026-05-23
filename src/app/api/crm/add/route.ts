@@ -3,6 +3,7 @@ import { Resend } from 'resend';
 import { getSupabase } from '@/lib/supabase';
 import { checkWarmup, logSend } from '@/lib/warmup';
 import { generateFollowUpPitch } from '@/lib/whatsapp';
+import { detectBodyLang, unsubscribeFooter } from '@/lib/emailFooter';
 import type { Lead } from '@/types';
 import type { PitchLang, Country } from '@/types';
 
@@ -74,22 +75,24 @@ export async function POST(req: NextRequest) {
     const fromName = process.env.FROM_NAME ?? 'Omar Rageh';
     const fromEmail = process.env.FROM_EMAIL ?? 'onboarding@resend.dev';
 
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://lead-finder-vert.vercel.app';
+    const lang: PitchLang = detectBodyLang(lead.email_body) as PitchLang;
+    const unsub = unsubscribeFooter(leadId, lang as 'de' | 'en' | 'ar', baseUrl);
+    const step1Body = lead.email_body + unsub;
+
     const resend = new Resend(resendKey);
     const { error: sendErr } = await resend.emails.send({
       from: `${fromName} <${fromEmail}>`,
+      replyTo: fromEmail,
       to: lead.email,
       subject: lead.email_subject,
-      text: lead.email_body,
+      text: step1Body,
     });
     if (sendErr) throw new Error(sendErr.message);
 
     // Log step 1 send
     await logSend({ leadId });
 
-    // Determine pitch lang for follow-ups (best guess from email body language)
-    const lang: PitchLang = /[؀-ۿ]/.test(lead.email_body) ? 'ar'
-      : /Dear|Hello|Hi,/.test(lead.email_body) ? 'en'
-      : 'de';
     const country: Country = 'de';
     const calendlyUrl = process.env.CALENDLY_URL ?? undefined;
 
@@ -103,6 +106,9 @@ export async function POST(req: NextRequest) {
     });
     const step3 = generateFollowUpPitch(3, lead.name, lead.weakness_reasons ?? [], lang, country, { calendlyUrl });
 
+    const step2Body = step2.body + unsub;
+    const step3Body = step3.body + unsub;
+
     await supabase.from('lf_sequences').upsert([
       {
         lead_id: leadId,
@@ -111,7 +117,7 @@ export async function POST(req: NextRequest) {
         scheduled_for: now.toISOString(),
         sent_at: now.toISOString(),
         subject: lead.email_subject,
-        body: lead.email_body,
+        body: step1Body,
       },
       {
         lead_id: leadId,
@@ -119,7 +125,7 @@ export async function POST(req: NextRequest) {
         status: 'pending',
         scheduled_for: addDays(now, 3).toISOString(),
         subject: step2.subject,
-        body: step2.body,
+        body: step2Body,
       },
       {
         lead_id: leadId,
@@ -127,7 +133,7 @@ export async function POST(req: NextRequest) {
         status: 'pending',
         scheduled_for: addDays(now, 7).toISOString(),
         subject: step3.subject,
-        body: step3.body,
+        body: step3Body,
       },
     ], { onConflict: 'lead_id,step' });
 

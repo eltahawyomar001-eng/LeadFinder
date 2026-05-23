@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { getSupabase } from '@/lib/supabase';
 import { checkWarmup, logSend } from '@/lib/warmup';
+import { detectBodyLang, unsubscribeFooter } from '@/lib/emailFooter';
 
 export const maxDuration = 60;
 
@@ -13,6 +14,7 @@ export async function POST() {
 
     const fromName = process.env.FROM_NAME ?? 'Omar Rageh';
     const fromEmail = process.env.FROM_EMAIL ?? 'onboarding@resend.dev';
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://lead-finder-vert.vercel.app';
     const resend = new Resend(resendKey);
     const supabase = getSupabase();
 
@@ -60,11 +62,15 @@ export async function POST() {
       }
 
       try {
+        const lang = detectBodyLang(seq.body);
+        const bodyWithUnsub = seq.body + unsubscribeFooter(lead.id, lang, baseUrl);
+
         const { error: sendErr } = await resend.emails.send({
           from: `${fromName} <${fromEmail}>`,
+          replyTo: fromEmail,
           to: lead.email,
           subject: seq.subject,
-          text: seq.body,
+          text: bodyWithUnsub,
         });
 
         if (sendErr) throw new Error(sendErr.message);
