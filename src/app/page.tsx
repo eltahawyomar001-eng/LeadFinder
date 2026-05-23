@@ -439,7 +439,7 @@ export default function HomePage() {
             {' '}· Full-Stack Developer · Fulda, Germany
           </p>
           <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center' }}>
-            <a href="mailto:omarragehfulda@gmail.com" style={{ fontSize: '11px', color: '#334155', textDecoration: 'none' }}>omarragehfulda@gmail.com</a>
+            <a href="mailto:omar@omarrageh.de" style={{ fontSize: '11px', color: '#334155', textDecoration: 'none' }}>omar@omarrageh.de</a>
             <a href="https://wa.me/4917655093674" target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', color: '#334155', textDecoration: 'none' }}>+49 176 55093674</a>
           </div>
         </div>

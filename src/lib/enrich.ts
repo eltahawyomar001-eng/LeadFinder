@@ -85,6 +85,7 @@ export function enrichLeadWithAnalysis(
       isHttps: analysis.isHttps,
       pageTitle: analysis.pageTitle ?? undefined,
       metaDescription: analysis.metaDescription ?? undefined,
+      calendlyUrl: process.env.CALENDLY_URL ?? undefined,
     },
   );
   lead.email_subject = pitch.subject;

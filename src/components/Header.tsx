@@ -22,6 +22,15 @@ export default function Header() {
 
         <div className="flex items-center gap-2 shrink-0">
           <a
+            href="/crm"
+            className="hidden sm:flex text-xs text-blue-400 hover:text-blue-300 border border-blue-900 hover:border-blue-700 rounded-lg px-3 py-2 transition-colors gap-1.5 items-center"
+          >
+            <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="18" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
+            </svg>
+            CRM
+          </a>
+          <a
             href="https://omar-portfolio.xyz"
             target="_blank"
             rel="noopener noreferrer"

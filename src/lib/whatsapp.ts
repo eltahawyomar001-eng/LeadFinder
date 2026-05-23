@@ -10,6 +10,7 @@ export interface PitchContext {
   isHttps?: boolean;
   pageTitle?: string | null;
   metaDescription?: string | null;
+  calendlyUrl?: string | null;
   reasons: string[];
 }
 
@@ -20,17 +21,13 @@ function pick(seed: string, n: number): number {
   return Math.abs(h) % n;
 }
 
-// Pull the most descriptive snippet from page meta for personalization
 function businessHint(ctx: PitchContext): string {
   const desc = ctx.metaDescription ?? ctx.pageTitle ?? '';
-  // Strip the business name from the hint to avoid "Müller - Müller salon" type repetition
   const stripped = desc.replace(new RegExp(ctx.name, 'gi'), '').replace(/\s{2,}/g, ' ').trim();
   return stripped.length > 20 ? stripped : '';
 }
 
 // ─── Legal compliance footers ─────────────────────────────────────────────────
-// Required by: DE (§7 UWG — strongly recommended), UK (PECR — required),
-// US (CAN-SPAM — required, must include physical address), SA/AE (good practice)
 function legalFooter(country: Country, lang: PitchLang): string {
   if (lang === 'de') {
     return '\n\nWenn Sie keine weiteren Nachrichten erhalten möchten, reicht eine kurze Antwort auf diese E-Mail.';
@@ -38,20 +35,28 @@ function legalFooter(country: Country, lang: PitchLang): string {
   if (lang === 'ar') {
     return '\n\nإذا كنتم لا ترغبون في تلقي رسائل مستقبلية، يُرجى الرد على هذا البريد وسأزيل بياناتكم فوراً.';
   }
-  // English — US requires physical address under CAN-SPAM
   if (country === 'us') {
     return '\n\nTo unsubscribe from future emails, reply \'unsubscribe\'.\nOmar Rageh · Fulda, Germany 36037';
   }
   return '\n\nIf you\'d prefer not to hear from me again, reply with \'remove\' and I\'ll delete your details immediately.';
 }
 
-// ─── GERMAN pitches ───────────────────────────────────────────────────────────
+// ─── Calendly CTA ─────────────────────────────────────────────────────────────
+function calendlyCTA(ctx: PitchContext): string {
+  if (!ctx.calendlyUrl) return '';
+  if (ctx.lang === 'de') return `\n\nOder direkt einen Termin buchen (15 Min.): ${ctx.calendlyUrl}`;
+  if (ctx.lang === 'ar') return `\n\nأو احجز موعداً مباشرة (15 دقيقة): ${ctx.calendlyUrl}`;
+  return `\n\nOr book a free 15-minute call directly: ${ctx.calendlyUrl}`;
+}
+
+// ─── GERMAN pitches — Step 1 ──────────────────────────────────────────────────
 
 function pitchDE(ctx: PitchContext): { subject: string; body: string } {
   const { name, builder, noWebsite, hasViewport } = ctx;
   const hint = businessHint(ctx);
   const v = pick(name, 3);
   const footer = legalFooter(ctx.country, 'de');
+  const cta = calendlyCTA(ctx);
 
   if (noWebsite) {
     const subjects = [
@@ -68,7 +73,7 @@ function pitchDE(ctx: PitchContext): { subject: string; body: string } {
       `In der Regel in einer Woche live.\n\n` +
       `Meine bisherigen Arbeiten: omar-portfolio.xyz\n\n` +
       `Hätten Sie nächste Woche 10 Minuten Zeit für ein kurzes Gespräch?\n\n` +
-      `Omar Rageh\nomarragehfulda@gmail.com · +49 176 55093674` + footer,
+      `Omar Rageh\nomar@omarrageh.de · +49 176 55093674` + cta + footer,
 
       `Ihre Arbeit verdient es, gefunden zu werden.\n\n` +
       (hint ? `${hint} klingt nach einem Angebot, für das es echte Nachfrage gibt. ` : '') +
@@ -78,7 +83,7 @@ function pitchDE(ctx: PitchContext): { subject: string; body: string } {
       `Einmaliger Festpreis, keine laufenden Kosten.\n\n` +
       `Referenzen: omar-portfolio.xyz\n\n` +
       `Wäre ein kurzes Gespräch diese Woche möglich?\n\n` +
-      `Omar Rageh · +49 176 55093674` + footer,
+      `Omar Rageh · +49 176 55093674` + cta + footer,
 
       `Wie viele Anfragen verlieren Sie monatlich, weil Interessenten Sie online nicht finden?\n\n` +
       `Ich helfe Unternehmen wie Ihrem dabei, ` +
@@ -87,7 +92,7 @@ function pitchDE(ctx: PitchContext): { subject: string; body: string } {
       `Fertig in rund einer Woche.\n\n` +
       `Meine Arbeiten: omar-portfolio.xyz\n\n` +
       `10 Minuten diese Woche — würde das passen?\n\n` +
-      `Omar Rageh · +49 176 55093674` + footer,
+      `Omar Rageh · +49 176 55093674` + cta + footer,
     ];
     return { subject: subjects[v], body: bodies[v] };
   }
@@ -109,7 +114,7 @@ function pitchDE(ctx: PitchContext): { subject: string; body: string } {
       `Meist in einer Woche fertig, zu einem klaren Festpreis.\n\n` +
       `Referenzen: omar-portfolio.xyz\n\n` +
       `Kurzes Gespräch diese Woche?\n\n` +
-      `Omar Rageh · +49 176 55093674` + footer,
+      `Omar Rageh · +49 176 55093674` + cta + footer,
 
       `${builder} war ein sinnvoller Einstieg — aber für langfristige Google-Sichtbarkeit ` +
       `und saubere Mobildarstellung ist er eine echte Bremse.\n\n` +
@@ -117,7 +122,7 @@ function pitchDE(ctx: PitchContext): { subject: string; body: string } {
       `Next.js, schnell, mobiloptimiert, suchmaschinenoptimiert — kein Template.\n\n` +
       `Meine Arbeiten: omar-portfolio.xyz\n\n` +
       `Wäre ein kurzer Austausch interessant?\n\n` +
-      `Omar Rageh · +49 176 55093674` + footer,
+      `Omar Rageh · +49 176 55093674` + cta + footer,
 
       `Die ehrliche Einschätzung: Ihre aktuelle ${builder}-Seite kostet Sie Rankings und Anfragen — ` +
       `weil Baukastensysteme von Google systematisch schlechter bewertet werden ` +
@@ -126,12 +131,11 @@ function pitchDE(ctx: PitchContext): { subject: string; body: string } {
       `In der Regel in unter einer Woche, zu einem transparenten Festpreis.\n\n` +
       `Portfolio: omar-portfolio.xyz\n\n` +
       `10 Minuten diese Woche — lohnt sich?\n\n` +
-      `Omar Rageh · +49 176 55093674` + footer,
+      `Omar Rageh · +49 176 55093674` + cta + footer,
     ];
     return { subject: subjects[v], body: bodies[v] };
   }
 
-  // Generic / few reviews / mobile-only issue
   const subjects = [
     `Mehr Anfragen für ${name} — konkreter Vorschlag`,
     `${name} — Ihre Online-Präsenz hat Potenzial`,
@@ -145,32 +149,33 @@ function pitchDE(ctx: PitchContext): { subject: string; body: string } {
     `die schnell laden und auf jedem Gerät funktionieren.\n\n` +
     `Meine Arbeiten: omar-portfolio.xyz\n\n` +
     `Wäre ein kurzes Gespräch diese Woche möglich?\n\n` +
-    `Omar Rageh · +49 176 55093674` + footer,
+    `Omar Rageh · +49 176 55093674` + cta + footer,
 
     `Ich bin auf ${name} gestoßen und denke, ich kann konkret helfen — ` +
     `ob durch eine neue Website, eine Überarbeitung des bestehenden Auftritts ` +
     `oder gezielte Performance-Optimierungen.\n\n` +
     `Meine Arbeiten: omar-portfolio.xyz\n\n` +
     `10 Minuten diese Woche?\n\n` +
-    `Omar Rageh · +49 176 55093674` + footer,
+    `Omar Rageh · +49 176 55093674` + cta + footer,
 
     `Für Unternehmen${hint ? ` wie „${hint}"` : ''} ist die Lücke zwischen ` +
     `einer durchschnittlichen und einer starken Online-Präsenz oft kleiner als gedacht — ` +
     `und der Unterschied bei den eingehenden Anfragen ist erheblich.\n\n` +
     `Ich entwickle Websites, die diesen Unterschied machen. Referenzen: omar-portfolio.xyz\n\n` +
     `Hätten Sie Zeit für ein kurzes Gespräch?\n\n` +
-    `Omar Rageh · +49 176 55093674` + footer,
+    `Omar Rageh · +49 176 55093674` + cta + footer,
   ];
   return { subject: subjects[v], body: bodies[v] };
 }
 
-// ─── ENGLISH pitches ──────────────────────────────────────────────────────────
+// ─── ENGLISH pitches — Step 1 ─────────────────────────────────────────────────
 
 function pitchEN(ctx: PitchContext): { subject: string; body: string } {
   const { name, builder, noWebsite, hasViewport } = ctx;
   const hint = businessHint(ctx);
   const v = pick(name, 3);
   const footer = legalFooter(ctx.country, 'en');
+  const cta = calendlyCTA(ctx);
 
   if (noWebsite) {
     const subjects = [
@@ -186,7 +191,7 @@ function pitchEN(ctx: PitchContext): { subject: string; body: string } {
       `designed to rank, ready in about a week, one fixed price with no monthly fees.\n\n` +
       `Recent work: omar-portfolio.xyz\n\n` +
       `Would a 10-minute call this week make sense?\n\n` +
-      `Omar Rageh · omarragehfulda@gmail.com · +49 176 55093674` + footer,
+      `Omar Rageh · omar@omarrageh.de · +49 176 55093674` + cta + footer,
 
       `You're building your business on reputation. Online, that reputation is invisible.\n\n` +
       (hint ? `${hint} — ` : '') +
@@ -194,14 +199,14 @@ function pitchEN(ctx: PitchContext): { subject: string; body: string } {
       `One-off price, nothing recurring. Usually live in under a week.\n\n` +
       `My work: omar-portfolio.xyz\n\n` +
       `Worth a quick conversation?\n\n` +
-      `Omar Rageh · +49 176 55093674` + footer,
+      `Omar Rageh · +49 176 55093674` + cta + footer,
 
       `There's real demand for what you do. A website channels it toward you instead of your competitors.\n\n` +
       (hint ? `Based on what I can see — ${hint} — ` : ``) +
       `I'd build you something fast, clean, and visible on Google. Done in under a week.\n\n` +
       `Portfolio: omar-portfolio.xyz\n\n` +
       `10 minutes this week to talk through what you'd need?\n\n` +
-      `Omar Rageh · +49 176 55093674` + footer,
+      `Omar Rageh · +49 176 55093674` + cta + footer,
     ];
     return { subject: subjects[v], body: bodies[v] };
   }
@@ -221,20 +226,20 @@ function pitchEN(ctx: PitchContext): { subject: string; body: string } {
       `Done in under a week, transparent fixed price.\n\n` +
       `Portfolio: omar-portfolio.xyz\n\n` +
       `Would a 10-minute call this week work?\n\n` +
-      `Omar Rageh · +49 176 55093674` + footer,
+      `Omar Rageh · +49 176 55093674` + cta + footer,
 
       `Honest take: ${builder} got you online fast, but it's putting a ceiling on your Google visibility and mobile performance.\n\n` +
       `I build proper sites — fast, custom, mobile-optimized. Not another template. Usually done in less than a week.\n\n` +
       `Recent work: omar-portfolio.xyz\n\n` +
       `Open to a quick call?\n\n` +
-      `Omar Rageh · +49 176 55093674` + footer,
+      `Omar Rageh · +49 176 55093674` + cta + footer,
 
       `${builder} sites share infrastructure with thousands of others — ` +
       `which means Google treats them as lower authority and they load slower on mobile than custom builds.${mobileNote}\n\n` +
       `I swap them out for Next.js sites that rank better and load in under a second. One fixed price.\n\n` +
       `My work: omar-portfolio.xyz\n\n` +
       `10 minutes to show you what's possible?\n\n` +
-      `Omar Rageh · +49 176 55093674` + footer,
+      `Omar Rageh · +49 176 55093674` + cta + footer,
     ];
     return { subject: subjects[v], body: bodies[v] };
   }
@@ -251,31 +256,32 @@ function pitchEN(ctx: PitchContext): { subject: string; body: string } {
     `and work flawlessly on mobile.\n\n` +
     `My work: omar-portfolio.xyz\n\n` +
     `Would a short call this week be useful?\n\n` +
-    `Omar Rageh · +49 176 55093674` + footer,
+    `Omar Rageh · +49 176 55093674` + cta + footer,
 
     `I came across ${name} and think I can help — whether that's a new site, a proper redesign, ` +
     `or targeted performance improvements.\n\n` +
     `My work: omar-portfolio.xyz\n\n` +
     `10 minutes this week?\n\n` +
-    `Omar Rageh · +49 176 55093674` + footer,
+    `Omar Rageh · +49 176 55093674` + cta + footer,
 
     `For a business${hint ? ` doing "${hint}"` : ` like yours`}, ` +
     `the difference between an average and a strong web presence often comes down to a few specific technical decisions — ` +
     `and the impact on inbound enquiries is significant.\n\n` +
     `I build websites that make that difference. Portfolio: omar-portfolio.xyz\n\n` +
     `Worth 10 minutes?\n\n` +
-    `Omar Rageh · +49 176 55093674` + footer,
+    `Omar Rageh · +49 176 55093674` + cta + footer,
   ];
   return { subject: subjects[v], body: bodies[v] };
 }
 
-// ─── ARABIC pitches ───────────────────────────────────────────────────────────
+// ─── ARABIC pitches — Step 1 ──────────────────────────────────────────────────
 
 function pitchAR(ctx: PitchContext): { subject: string; body: string } {
   const { name, builder, noWebsite, hasViewport } = ctx;
   const hint = businessHint(ctx);
   const v = pick(name, 3);
   const footer = legalFooter(ctx.country, 'ar');
+  const cta = calendlyCTA(ctx);
 
   if (noWebsite) {
     const subjects = [
@@ -291,7 +297,7 @@ function pitchAR(ctx: PitchContext): { subject: string; body: string } {
       `عادةً تكون جاهزة خلال أسبوع واحد بسعر ثابت بدون اشتراكات شهرية.\n\n` +
       `أعمالي السابقة: omar-portfolio.xyz\n\n` +
       `هل يمكننا تحديد موعد لمكالمة قصيرة هذا الأسبوع؟\n\n` +
-      `عمر راجح · omarragehfulda@gmail.com · +49 176 55093674` + footer,
+      `عمر راجح · omar@omarrageh.de · +49 176 55093674` + cta + footer,
 
       `كل يوم لا يجد فيه عميل محتمل موقعكم الإلكتروني، هو يوم تخسرون فيه عملاً.\n\n` +
       (hint ? `${hint} — ` : '') +
@@ -299,14 +305,14 @@ function pitchAR(ctx: PitchContext): { subject: string; body: string } {
       `سريعة، تظهر في جوجل، تعمل بكفاءة على الجوال.\n\n` +
       `أعمالي: omar-portfolio.xyz\n\n` +
       `عشر دقائق هذا الأسبوع تكفي — هل يناسبكم؟\n\n` +
-      `عمر راجح · +49 176 55093674` + footer,
+      `عمر راجح · +49 176 55093674` + cta + footer,
 
       `الشركات التي لا تمتلك مواقع إلكترونية تخسر ما يصل إلى 60% من العملاء المحتملين الذين يبحثون أولاً على الإنترنت.\n\n` +
       `أبني مواقع تُغلق هذه الفجوة — بتصميم احترافي وسرعة حقيقية وحضور قوي في جوجل. ` +
       `سعر واحد واضح، بدون مفاجآت.\n\n` +
       `محفظة أعمالي: omar-portfolio.xyz\n\n` +
       `هل نتحدث هذا الأسبوع؟\n\n` +
-      `عمر راجح · +49 176 55093674` + footer,
+      `عمر راجح · +49 176 55093674` + cta + footer,
     ];
     return { subject: subjects[v], body: bodies[v] };
   }
@@ -326,20 +332,20 @@ function pitchAR(ctx: PitchContext): { subject: string; body: string } {
       `وتصميم يخصكم وحدكم. عادةً في أسبوع واحد بسعر ثابت.\n\n` +
       `أعمالي: omar-portfolio.xyz\n\n` +
       `مكالمة قصيرة هذا الأسبوع؟\n\n` +
-      `عمر راجح · +49 176 55093674` + footer,
+      `عمر راجح · +49 176 55093674` + cta + footer,
 
       `${builder} كان خياراً منطقياً للبداية — لكنه يضع سقفاً على ظهوركم في جوجل وأداءكم على الجوال.\n\n` +
       `أبني مواقع احترافية تحل هذه المشكلات بالتحديد — Next.js، سريعة، مُحسَّنة لمحركات البحث، بدون قوالب جاهزة.\n\n` +
       `أعمالي: omar-portfolio.xyz\n\n` +
       `هل يستحق الأمر محادثة قصيرة؟\n\n` +
-      `عمر راجح · +49 176 55093674` + footer,
+      `عمر راجح · +49 176 55093674` + cta + footer,
 
       `مواقع ${builder} تشترك في بنية تحتية مع آلاف المواقع الأخرى — ` +
       `مما يجعل جوجل يتعامل معها كمصادر منخفضة السلطة وتتحمل أوقات تحميل أبطأ من المواقع المخصصة.${mobileNote}\n\n` +
       `أستبدل هذه المواقع بمواقع Next.js تُحمَّل في أقل من ثانية وتُرتَّب بشكل أفضل. سعر ثابت واحد.\n\n` +
       `محفظة أعمالي: omar-portfolio.xyz\n\n` +
       `عشر دقائق لأريكم الممكن؟\n\n` +
-      `عمر راجح · +49 176 55093674` + footer,
+      `عمر راجح · +49 176 55093674` + cta + footer,
     ];
     return { subject: subjects[v], body: bodies[v] };
   }
@@ -356,22 +362,199 @@ function pitchAR(ctx: PitchContext): { subject: string; body: string } {
     `تظهر في جوجل وتعمل بسلاسة على الجوال.\n\n` +
     `أعمالي: omar-portfolio.xyz\n\n` +
     `هل تفيدكم مكالمة قصيرة هذا الأسبوع؟\n\n` +
-    `عمر راجح · +49 176 55093674` + footer,
+    `عمر راجح · +49 176 55093674` + cta + footer,
 
     `وجدت ${name} وأعتقد أنني أستطيع المساعدة — سواء في موقع جديد أو إعادة تصميم كاملة ` +
     `أو تحسينات أداء مُحددة.\n\n` +
     `أعمالي: omar-portfolio.xyz\n\n` +
     `عشر دقائق هذا الأسبوع؟\n\n` +
-    `عمر راجح · +49 176 55093674` + footer,
+    `عمر راجح · +49 176 55093674` + cta + footer,
 
     `لشركة${hint ? ` مثل "${hint}"` : ` في هذا المجال`}، ` +
     `الفرق بين حضور رقمي متوسط وحضور قوي يتعلق غالباً ببضعة قرارات تقنية محددة — ` +
     `وتأثيرها على الاستفسارات الواردة يكون ملحوظاً جداً.\n\n` +
     `أبني مواقع تُحدث هذا الفرق. محفظة أعمالي: omar-portfolio.xyz\n\n` +
     `يستحق الأمر عشر دقائق؟\n\n` +
-    `عمر راجح · +49 176 55093674` + footer,
+    `عمر راجح · +49 176 55093674` + cta + footer,
   ];
   return { subject: subjects[v], body: bodies[v] };
+}
+
+// ─── FOLLOW-UP pitches — Step 2 (Day 3) ──────────────────────────────────────
+
+function followUp2DE(ctx: PitchContext): { subject: string; body: string } {
+  const { name, builder, noWebsite } = ctx;
+  const v = pick(name + '2', 3);
+  const footer = legalFooter(ctx.country, 'de');
+  const cta = calendlyCTA(ctx);
+
+  const subjects = [
+    `Nachtrag — ${name}`,
+    `${name} — kurze Rückfrage`,
+    `Re: Ihre Website — ein konkreter Gedanke`,
+  ];
+
+  let specificAngle: string;
+  if (noWebsite) {
+    specificAngle =
+      `Ich hatte Ihnen Anfang der Woche geschrieben — vielleicht war der Zeitpunkt nicht ideal.\n\n` +
+      `Ein konkreter Gedanke: Wenn jemand Ihr Unternehmen googelt und kein Ergebnis findet, ` +
+      `springt er sofort zum nächsten. Das passiert täglich — und ohne Website landen diese Anfragen bei Ihren Mitbewerbern.\n\n` +
+      `Ich würde Ihnen gerne in 10 Minuten zeigen, wie eine Website für Ihr Unternehmen konkret aussehen könnte — ` +
+      `kein generisches Template, sondern etwas, das zu Ihrem Angebot passt.`;
+  } else if (builder) {
+    specificAngle =
+      `Ich hatte Ihnen vor einigen Tagen geschrieben — eine kurze Ergänzung:\n\n` +
+      `Der Unterschied zwischen einer ${builder}-Website und einer individuell entwickelten Seite ` +
+      `lässt sich in messbaren Zahlen ausdrücken: Ladezeit, Core Web Vitals, Google-Position. ` +
+      `Ich analysiere das für meine Kunden regelmäßig — und zeige Ihnen gerne, wo Ihre aktuelle Seite steht.`;
+  } else {
+    specificAngle =
+      `Ich wollte kurz nachhaken — nicht um zu nerven, sondern weil ich denke, ` +
+      `dass ich Ihnen konkret helfen kann.\n\n` +
+      `Viele meiner Kunden haben ähnlich angefangen: solide Grundlage, aber ungenutztes Potenzial online. ` +
+      `Meistens lässt sich in einem kurzen Gespräch schnell klären, ob und was sinnvoll wäre.`;
+  }
+
+  const body =
+    `${specificAngle}\n\n` +
+    `Falls Interesse besteht — meine Referenzen: omar-portfolio.xyz\n\n` +
+    `Omar Rageh · +49 176 55093674` + cta + footer;
+
+  return { subject: subjects[v], body };
+}
+
+function followUp2EN(ctx: PitchContext): { subject: string; body: string } {
+  const { name, builder, noWebsite } = ctx;
+  const v = pick(name + '2', 3);
+  const footer = legalFooter(ctx.country, 'en');
+  const cta = calendlyCTA(ctx);
+
+  const subjects = [
+    `Following up — ${name}`,
+    `${name} — one more thought`,
+    `Re: your website — a specific point`,
+  ];
+
+  let specificAngle: string;
+  if (noWebsite) {
+    specificAngle =
+      `I wrote a few days ago — wanted to follow up with one specific point.\n\n` +
+      `Every day without a website, someone who would have chosen you ends up choosing a competitor ` +
+      `who shows up on Google. That's not hypothetical — it happens to every business without an online presence.\n\n` +
+      `I can show you in 10 minutes what a site for your business would look like — ` +
+      `built for your specific niche, not a generic template.`;
+  } else if (builder) {
+    specificAngle =
+      `Following up on my email from a few days ago — one concrete addition:\n\n` +
+      `The performance gap between a ${builder} site and a custom-built one isn't subtle. ` +
+      `Page speed, Core Web Vitals, Google ranking authority — all measurably better with a proper build. ` +
+      `I measure this for clients regularly and can show you exactly where your site stands.`;
+  } else {
+    specificAngle =
+      `I wanted to follow up — not to push, but because I think I can help in a specific, measurable way.\n\n` +
+      `Most businesses I work with have a solid foundation but untapped potential online. ` +
+      `A short conversation usually clarifies quickly whether there's something worth exploring.`;
+  }
+
+  const body =
+    `${specificAngle}\n\n` +
+    `My recent work: omar-portfolio.xyz\n\n` +
+    `Omar Rageh · +49 176 55093674` + cta + footer;
+
+  return { subject: subjects[v], body };
+}
+
+function followUp2AR(ctx: PitchContext): { subject: string; body: string } {
+  const { name, builder, noWebsite } = ctx;
+  const v = pick(name + '2', 3);
+  const footer = legalFooter(ctx.country, 'ar');
+  const cta = calendlyCTA(ctx);
+
+  const subjects = [
+    `متابعة — ${name}`,
+    `${name} — ملاحظة إضافية`,
+    `رسالة المتابعة — موقعكم الإلكتروني`,
+  ];
+
+  let specificAngle: string;
+  if (noWebsite) {
+    specificAngle =
+      `كتبت إليكم قبل بضعة أيام — أردت المتابعة بنقطة محددة.\n\n` +
+      `كل يوم بدون موقع إلكتروني، يختار عميل محتمل كان سيختاركم منافساً يظهر في نتائج جوجل. ` +
+      `يمكنني أن أريكم في 10 دقائق كيف يمكن أن يبدو موقع شركتكم — ` +
+      `مصمم خصيصاً لنشاطكم، وليس قالباً جاهزاً.`;
+  } else if (builder) {
+    specificAngle =
+      `متابعةً لرسالتي السابقة — إضافة محددة:\n\n` +
+      `الفجوة في الأداء بين موقع ${builder} وموقع مبني خصيصاً ليست بسيطة. ` +
+      `سرعة التحميل، وCore Web Vitals، وسلطة التصنيف في جوجل — كلها أفضل بشكل ملحوظ مع البناء المخصص. ` +
+      `أقيس هذا لعملائي بانتظام ويمكنني إظهار موقف موقعكم الحالي بدقة.`;
+  } else {
+    specificAngle =
+      `أردت المتابعة — ليس للإلحاح، بل لأنني أعتقد أنني أستطيع المساعدة بطريقة محددة وقابلة للقياس.\n\n` +
+      `معظم الشركات التي أعمل معها لديها أساس متين لكن إمكانات غير مستغلة على الإنترنت. ` +
+      `محادثة قصيرة تُوضّح عادةً بسرعة إذا كان هناك شيء يستحق الاستكشاف.`;
+  }
+
+  const body =
+    `${specificAngle}\n\n` +
+    `أعمالي الأخيرة: omar-portfolio.xyz\n\n` +
+    `عمر راجح · +49 176 55093674` + cta + footer;
+
+  return { subject: subjects[v], body };
+}
+
+// ─── FOLLOW-UP pitches — Step 3 (Day 7) — final, brief ───────────────────────
+
+function followUp3DE(ctx: PitchContext): { subject: string; body: string } {
+  const { name } = ctx;
+  const footer = legalFooter(ctx.country, 'de');
+  const cta = calendlyCTA(ctx);
+
+  return {
+    subject: `Letzte Nachricht — ${name}`,
+    body:
+      `Guten Tag,\n\n` +
+      `ich melde mich ein letztes Mal, bevor ich Sie in Ruhe lasse.\n\n` +
+      `Falls Sie Interesse an einer professionellen Website haben oder Ihre bestehende Seite verbessern möchten — ` +
+      `ich bin erreichbar.\n\n` +
+      `Falls nicht: kein Problem. Ich wünsche Ihnen weiterhin viel Erfolg.\n\n` +
+      `Omar Rageh · omar@omarrageh.de · +49 176 55093674\nomarrageh.de` + cta + footer,
+  };
+}
+
+function followUp3EN(ctx: PitchContext): { subject: string; body: string } {
+  const { name } = ctx;
+  const footer = legalFooter(ctx.country, 'en');
+  const cta = calendlyCTA(ctx);
+
+  return {
+    subject: `Last email — ${name}`,
+    body:
+      `Hi,\n\n` +
+      `I promised myself I'd only reach out three times, so this is the last one.\n\n` +
+      `If you ever decide you want a better website for ${name} — I'm here.\n\n` +
+      `If not, no hard feelings at all. Best of luck with the business.\n\n` +
+      `Omar Rageh · omar@omarrageh.de · +49 176 55093674` + cta + footer,
+  };
+}
+
+function followUp3AR(ctx: PitchContext): { subject: string; body: string } {
+  const { name } = ctx;
+  const footer = legalFooter(ctx.country, 'ar');
+  const cta = calendlyCTA(ctx);
+
+  return {
+    subject: `رسالتي الأخيرة — ${name}`,
+    body:
+      `تحية طيبة،\n\n` +
+      `هذه رسالتي الأخيرة قبل أن أتركم في حالكم.\n\n` +
+      `إذا قررتم يوماً ما تحسين حضوركم الرقمي أو بناء موقع احترافي لـ ${name} — ` +
+      `أنا هنا وأسعد بالتواصل.\n\n` +
+      `وإن لم يكن، لا توجد مشكلة على الإطلاق. أتمنى لكم التوفيق والنجاح.\n\n` +
+      `عمر راجح · omar@omarrageh.de · +49 176 55093674` + cta + footer,
+  };
 }
 
 // ─── Public API ────────────────────────────────────────────────────────────────
@@ -396,7 +579,36 @@ export function generateEmailPitch(
   return pitchDE(ctx);
 }
 
-// ── Legacy helpers kept for backward compatibility ────────────────────────────
+export function generateFollowUpPitch(
+  step: 2 | 3,
+  businessName: string,
+  reasons: string[],
+  lang: PitchLang = 'de',
+  country: Country = 'de',
+  extra?: Partial<PitchContext>,
+): { subject: string; body: string } {
+  const ctx: PitchContext = {
+    name: businessName,
+    lang,
+    country,
+    reasons,
+    noWebsite: reasons.some((r) => r.includes('keine eigene Website') || r.includes('no website')),
+    ...extra,
+  };
+
+  if (step === 2) {
+    if (lang === 'ar') return followUp2AR(ctx);
+    if (lang === 'en') return followUp2EN(ctx);
+    return followUp2DE(ctx);
+  }
+
+  // step 3
+  if (lang === 'ar') return followUp3AR(ctx);
+  if (lang === 'en') return followUp3EN(ctx);
+  return followUp3DE(ctx);
+}
+
+// ── Legacy helpers ────────────────────────────────────────────────────────────
 
 export function isMobileNumber(phone: string): boolean {
   if (!phone) return false;

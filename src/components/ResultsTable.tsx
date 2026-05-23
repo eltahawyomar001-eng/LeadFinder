@@ -22,7 +22,7 @@ function priorityKey(score: number) {
   return score >= 6 ? 'high' : score >= 3 ? 'medium' : 'low';
 }
 
-// Inline Gmail send button for table rows
+// Inline send button for table rows
 function GmailBtn({ lead, contacted, onContacted }: { lead: Lead; contacted?: boolean; onContacted?: (id: string) => void }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(false);
@@ -51,7 +51,7 @@ function GmailBtn({ lead, contacted, onContacted }: { lead: Lead; contacted?: bo
   };
 
   return (
-    <button onClick={handleSend} disabled={sending} title={error ? 'Send failed — retry' : 'Send via Gmail'}
+    <button onClick={handleSend} disabled={sending} title={error ? 'Send failed — retry' : 'Send email'}
       style={{
         backgroundColor: error ? 'rgba(127,29,29,0.3)' : 'rgba(21,128,61,0.15)',
         border: `1px solid ${error ? '#7f1d1d' : '#166534'}`,
