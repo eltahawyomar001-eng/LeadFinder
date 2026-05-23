@@ -91,19 +91,11 @@ async function fetchHtml(url: string, timeoutMs = 7_000): Promise<string> {
   );
 }
 
-// Try direct fetch, then ScraperAPI (if key configured), then HTTP fallback
+// Try HTTPS first, fallback to HTTP if the host rejects HTTPS
 async function fetchHtmlWithFallback(url: string, timeoutMs = 7_000): Promise<string> {
   try {
     return await fetchHtml(url, timeoutMs);
   } catch {
-    // If direct fetch failed, try ScraperAPI — handles blocked IPs / bot protection
-    const scraperKey = process.env.SCRAPERAPI_KEY;
-    if (scraperKey) {
-      try {
-        const proxyUrl = `https://api.scraperapi.com?api_key=${scraperKey}&url=${encodeURIComponent(url)}&render=false`;
-        return await fetchHtml(proxyUrl, timeoutMs + 8_000);
-      } catch { /* ScraperAPI also failed, try HTTP */ }
-    }
     if (url.startsWith('https://')) {
       return await fetchHtml(url.replace('https://', 'http://'), timeoutMs);
     }
