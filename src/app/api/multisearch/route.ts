@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     // Analyze websites for top 30 (quality scoring + email + language)
     const withWebsite = deduped.filter((l) => l.website && !l.email).slice(0, 30);
     const analyses = await Promise.all(withWebsite.map((l) => analyzeWebsite(l.website!)));
-    withWebsite.forEach((l, i) => enrichLeadWithAnalysis(l, analyses[i], countryLang));
+    withWebsite.forEach((l, i) => enrichLeadWithAnalysis(l, analyses[i], countryLang, country));
 
     // Sort by weakness score descending
     deduped.sort((a, b) => b.weakness_score - a.weakness_score);

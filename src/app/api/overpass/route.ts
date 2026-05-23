@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     const toAnalyze = stateName ? withWebsite.slice(0, 50) : withWebsite;
 
     const analyses = await Promise.all(toAnalyze.map((l) => analyzeWebsite(l.website!)));
-    toAnalyze.forEach((l, i) => enrichLeadWithAnalysis(l, analyses[i], countryLang));
+    toAnalyze.forEach((l, i) => enrichLeadWithAnalysis(l, analyses[i], countryLang, country));
 
     // Re-sort after score adjustments
     leads.sort((a, b) => b.weakness_score - a.weakness_score);

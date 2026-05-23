@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     const withWebsite = leads.filter((l) => l.website).slice(0, 20);
     if (withWebsite.length > 0) {
       const analyses = await Promise.all(withWebsite.map((l) => analyzeWebsite(l.website!)));
-      withWebsite.forEach((l, i) => enrichLeadWithAnalysis(l, analyses[i], countryLang));
+      withWebsite.forEach((l, i) => enrichLeadWithAnalysis(l, analyses[i], countryLang, country));
       leads.sort((a, b) => b.weakness_score - a.weakness_score);
     }
 
