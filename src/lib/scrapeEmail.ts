@@ -2,6 +2,7 @@ import type { PitchLang } from '@/types';
 
 export interface WebsiteAnalysis {
   email: string | null;
+  phone: string | null;
   builder: string | null;
   isModern: boolean;
   hasViewport: boolean;
@@ -15,7 +16,6 @@ export interface WebsiteAnalysis {
 
 const EMAIL_RE = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
 
-// Only block clearly non-business domains — NOT gmx/web.de which German SMBs use heavily
 const IGNORE_DOMAINS = new Set([
   'example.com', 'sentry.io', 'w3.org', 'schema.org',
   'facebook.com', 'instagram.com', 'twitter.com', 'x.com',
@@ -26,62 +26,50 @@ const IGNORE_DOMAINS = new Set([
 ]);
 
 const IGNORE_PREFIXES = new Set([
-  'noreply', 'no-reply', 'donotreply', 'do-not-reply',
-  'admin', 'webmaster', 'postmaster', 'mailer-daemon',
+  'noreply', 'noreply', 'donotreply', 'donotreply',
+  'admin', 'webmaster', 'postmaster', 'mailerdaemon',
   'bounce', 'bounces',
 ]);
 
-// Contact-like URL path segments — all major world languages
-const CONTACT_SLUGS = [
-  // ── German ────────────────────────────────────────────
-  'impressum', 'kontakt', 'kontaktieren', 'ueber-uns', 'über-uns',
-  'anfahrt', 'oeffnungszeiten', 'datenschutz', 'datenschutzerklaerung',
-  // ── English ───────────────────────────────────────────
+// High-value contact page slugs — tried with priority
+const PRIORITY_SLUGS = [
+  // German (most important for this app)
+  'impressum', 'kontakt', 'kontaktieren', 'ueber-uns', 'uber-uns',
+  // English
   'contact', 'contact-us', 'about', 'about-us', 'get-in-touch',
-  'reach-us', 'reach-out', 'team', 'our-team', 'find-us',
-  'connect', 'enquire', 'enquiries', 'help', 'support',
-  // ── French ────────────────────────────────────────────
-  'contactez-nous', 'nous-contacter', 'a-propos', 'qui-sommes-nous',
-  'mentions-legales', 'coordonnees', 'plan-dacces', 'nous-joindre',
-  // ── Spanish ───────────────────────────────────────────
-  'contacto', 'contactar', 'sobre-nosotros', 'quienes-somos',
-  'donde-estamos', 'encuentranos', 'escribenos', 'aviso-legal',
-  // ── Italian ───────────────────────────────────────────
-  'contatti', 'contattaci', 'chi-siamo', 'dove-siamo', 'scrivici',
-  // ── Portuguese ────────────────────────────────────────
-  'contato', 'contacto', 'fale-conosco', 'sobre-nos', 'quem-somos',
-  'fale-connosco', 'entre-em-contacto',
-  // ── Dutch ─────────────────────────────────────────────
-  'over-ons', 'neem-contact-op', 'bereikbaarheid', 'contacteer-ons',
-  // ── Polish ────────────────────────────────────────────
-  'o-nas', 'znajdz-nas', 'skontaktuj-sie',
-  // ── Turkish ───────────────────────────────────────────
-  'iletisim', 'hakkimizda', 'bize-ulasin', 'bize-yazin',
-  // ── Swedish / Nordic ──────────────────────────────────
-  'kontakta-oss', 'om-oss', 'hitta-oss',
-  // ── Russian ───────────────────────────────────────────
-  'kontakty', 'o-nas', 'svyazatsya',
-  // ── Arabic ────────────────────────────────────────────
-  'اتصل', 'تواصل', 'من-نحن', 'اتصل-بنا', 'تواصل-معنا',
-  // ── Multilingual path prefixes ────────────────────────
-  'en/contact', 'en/about', 'de/kontakt', 'fr/contact',
-  'es/contacto', 'it/contatti', 'nl/contact', 'pt/contacto',
+  'reach-us', 'team', 'our-team', 'support', 'help',
+  // French
+  'contactez-nous', 'nous-contacter', 'mentions-legales',
+  // Spanish
+  'contacto', 'contactar', 'sobre-nosotros',
+  // Italian
+  'contatti', 'contattaci', 'chi-siamo',
+  // Portuguese
+  'contato', 'fale-conosco',
+  // Dutch
+  'over-ons', 'neem-contact-op',
+  // Turkish
+  'iletisim', 'hakkimizda',
+  // Swedish
+  'kontakta-oss', 'om-oss',
+  // Multilingual prefixes
+  'en/contact', 'en/about', 'de/kontakt', 'de/impressum',
 ];
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 
-async function fetchHtml(url: string, timeoutMs = 8_000): Promise<string> {
+async function fetchHtml(url: string, timeoutMs = 7_000): Promise<string> {
   const res = await fetch(url, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'de-DE,de;q=0.9,en;q=0.8,ar;q=0.7',
+      'Accept-Language': 'de-DE,de;q=0.9,en;q=0.8',
       'Accept-Encoding': 'gzip, deflate',
     },
     signal: AbortSignal.timeout(timeoutMs),
+    redirect: 'follow',
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  // Only read first 300 KB — enough to find any email, avoids huge payloads
   const reader = res.body?.getReader();
   if (!reader) return res.text();
   const chunks: Uint8Array[] = [];
@@ -94,62 +82,106 @@ async function fetchHtml(url: string, timeoutMs = 8_000): Promise<string> {
   }
   reader.cancel();
   return new TextDecoder().decode(
-    chunks.reduce((acc, c) => { const t = new Uint8Array(acc.length + c.length); t.set(acc); t.set(c, acc.length); return t; }, new Uint8Array(0))
+    chunks.reduce((acc, c) => {
+      const t = new Uint8Array(acc.length + c.length);
+      t.set(acc); t.set(c, acc.length);
+      return t;
+    }, new Uint8Array(0))
   );
+}
+
+// Try HTTPS first, fallback to HTTP if the host rejects HTTPS
+async function fetchHtmlWithFallback(url: string, timeoutMs = 7_000): Promise<string> {
+  try {
+    return await fetchHtml(url, timeoutMs);
+  } catch {
+    if (url.startsWith('https://')) {
+      return await fetchHtml(url.replace('https://', 'http://'), timeoutMs);
+    }
+    throw new Error('fetch failed');
+  }
+}
+
+// ─── Decoders ─────────────────────────────────────────────────────────────────
+
+// Cloudflare email protection: <span data-cfemail="HEX"> XOR decode
+function decodeCfEmail(encoded: string): string {
+  const r = parseInt(encoded.slice(0, 2), 16);
+  let email = '';
+  for (let n = 2; n < encoded.length; n += 2) {
+    email += String.fromCharCode(parseInt(encoded.slice(n, n + 2), 16) ^ r);
+  }
+  return email;
+}
+
+// Full HTML entity decode (decimal + hex + common named + obfuscation patterns)
+function decodeHtmlEntities(html: string): string {
+  return html
+    // Decimal numeric entities: &#110; → n
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
+    // Hex numeric entities: &#x6e; → n
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, code) => String.fromCharCode(parseInt(code, 16)))
+    // Unicode JS escapes: @ → @
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_, code) => String.fromCharCode(parseInt(code, 16)))
+    // Named entities
+    .replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+    // Obfuscation patterns
+    .replace(/\[dot\]/gi, '.').replace(/\(dot\)/gi, '.').replace(/\s+dot\s+/gi, '.')
+    .replace(/\[at\]/gi, '@').replace(/\(at\)/gi, '@').replace(/\s+(?:AT|at)\s+/gi, '@')
+    // Reverse obfuscation: email encoded as reversed string in some templates
+    // (handled downstream via reversedEmailExtract)
+    ;
+}
+
+// ROT13 decode (some sites use it for email obfuscation)
+function rot13(s: string): string {
+  return s.replace(/[a-zA-Z]/g, (c) => {
+    const base = c <= 'Z' ? 65 : 97;
+    return String.fromCharCode(((c.charCodeAt(0) - base + 13) % 26) + base);
+  });
 }
 
 // ─── Email extraction ─────────────────────────────────────────────────────────
 
-function decodeHtmlEntities(html: string): string {
-  return html
-    .replace(/&#64;|&commat;/gi, '@')
-    .replace(/&#46;/gi, '.')
-    .replace(/&amp;/gi, '&')
-    .replace(/&#x40;/gi, '@')
-    .replace(/\\u0040/gi, '@')
-    .replace(/\[dot\]/gi, '.').replace(/\(dot\)/gi, '.').replace(/\s+dot\s+/gi, '.')
-    .replace(/\[at\]/gi, '@').replace(/\(at\)/gi, '@').replace(/\s+(?:AT|at)\s+/gi, '@');
-}
-
 function scoreEmail(email: string): number {
   const [local, domain] = email.split('@');
   if (!domain) return -1;
-  // Prefer business-domain emails over free providers
   const freeDomains = new Set([
-    // Global
     'gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com', 'icloud.com', 'me.com',
     'live.com', 'msn.com', 'aol.com', 'protonmail.com', 'pm.me',
-    // German
     'yahoo.de', 'gmx.de', 'gmx.net', 'web.de', 't-online.de',
-    // French
-    'wanadoo.fr', 'orange.fr', 'free.fr', 'laposte.net', 'sfr.fr', 'hotmail.fr', 'yahoo.fr',
-    // UK
-    'btinternet.com', 'sky.com', 'talktalk.net', 'virginmedia.com', 'hotmail.co.uk', 'yahoo.co.uk',
-    // Other regional
-    'libero.it', 'tin.it', 'alice.it', 'terra.com.br', 'uol.com.br',
-    'mail.ru', 'yandex.ru', 'list.ru', 'bk.ru',
+    'wanadoo.fr', 'orange.fr', 'free.fr', 'laposte.net', 'sfr.fr',
+    'btinternet.com', 'sky.com', 'talktalk.net', 'virginmedia.com',
+    'libero.it', 'tin.it', 'alice.it', 'mail.ru', 'yandex.ru',
   ]);
   let score = freeDomains.has(domain) ? 0 : 10;
-  // Prefer short local parts (info@, contact@, hallo@) over long random ones
   if (local.length < 20) score += 3;
-  // Penalise no-reply style prefixes
   if (IGNORE_PREFIXES.has(local.replace(/[^a-z]/g, ''))) score -= 20;
-  // Bonus for common business contact prefixes
-  if (/^(info|hallo|hello|contact|kontakt|anfrage|mail|office)/.test(local)) score += 5;
+  if (/^(info|hallo|hello|contact|kontakt|anfrage|mail|office|hola|bonjour)/.test(local)) score += 5;
+  // Prefer emails whose domain matches the site's domain (most authoritative)
+  score += 2; // bumped when we know — caller can adjust
   return score;
 }
 
-function extractEmails(rawHtml: string): string[] {
+function extractEmailsFromHtml(rawHtml: string): string[] {
+  // Full decode first
   const html = decodeHtmlEntities(rawHtml);
-
   const candidates = new Set<string>();
 
-  // 1. mailto: links — most reliable
+  // 1. Cloudflare email protection — data-cfemail="HEX"
+  for (const m of html.matchAll(/data-cfemail=["']([0-9a-fA-F]+)["']/gi)) {
+    try {
+      const decoded = decodeCfEmail(m[1]);
+      if (decoded.includes('@')) candidates.add(decoded.toLowerCase().trim());
+    } catch { /* bad encoding */ }
+  }
+
+  // 2. mailto: links — most reliable
   for (const m of html.matchAll(/href=["']mailto:([^"'?&\s<>]+)/gi)) {
     candidates.add(m[1].toLowerCase().trim());
   }
 
-  // 2. JSON-LD schema.org email field
+  // 3. JSON-LD schema.org email field
   for (const m of html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
     try {
       const json = JSON.parse(m[1]);
@@ -161,15 +193,48 @@ function extractEmails(rawHtml: string): string[] {
         Object.values(o).forEach(pick);
       };
       pick(json);
-    } catch { /* malformed JSON — skip */ }
+    } catch { /* malformed JSON */ }
   }
 
-  // 3. data-email / data-mail attributes (obfuscation pattern)
-  for (const m of html.matchAll(/data-(?:email|mail|contact)=["']([^"']+)["']/gi)) {
-    candidates.add(m[1].toLowerCase().trim());
+  // 4. data-email / data-mail attributes (JS obfuscation)
+  for (const m of html.matchAll(/data-(?:email|mail|contact|address)=["']([^"']+)["']/gi)) {
+    const v = decodeHtmlEntities(m[1]).toLowerCase().trim();
+    if (v.includes('@')) candidates.add(v);
   }
 
-  // 4. Raw regex on decoded HTML
+  // 5. JavaScript string assignments: email = "...", "email":"...", window.email, etc.
+  const jsPatterns = [
+    /["']email["']\s*:\s*["']([^"']+@[^"']+)["']/gi,
+    /(?:var|let|const)\s+email\s*=\s*["']([^"']+@[^"']+)["']/gi,
+    /window\.email\s*=\s*["']([^"']+@[^"']+)["']/gi,
+    /email\s*=\s*["']([^"']{3,60}@[^"']{3,40})["']/gi,
+    /mailto\\*["']?\s*\+?\s*["']([^"']{3,60}@[^"']{3,40})["']/gi,
+  ];
+  for (const pattern of jsPatterns) {
+    for (const m of html.matchAll(pattern)) {
+      const v = m[1].toLowerCase().trim();
+      if (v.includes('@') && !v.includes(' ')) candidates.add(v);
+    }
+  }
+
+  // 6. ROT13-encoded emails (some WordPress plugins use this)
+  for (const m of html.matchAll(/class=["'][^"']*rot13[^"']*["'][^>]*>([^<]{5,80})</gi)) {
+    const decoded = rot13(m[1]).toLowerCase().trim();
+    if (decoded.includes('@')) candidates.add(decoded);
+  }
+  // data-rot13 attributes
+  for (const m of html.matchAll(/data-rot13=["']([^"']{5,80})["']/gi)) {
+    const decoded = rot13(m[1]).toLowerCase().trim();
+    if (decoded.includes('@')) candidates.add(decoded);
+  }
+
+  // 7. Reversed email strings (direction:rtl trick)
+  for (const m of html.matchAll(/class=["'][^"']*(?:reversed|rtl|rev-email)[^"']*["'][^>]*>([^<]{5,80})</gi)) {
+    const reversed = m[1].split('').reverse().join('').toLowerCase().trim();
+    if (reversed.includes('@')) candidates.add(reversed);
+  }
+
+  // 8. Raw regex on fully decoded HTML — last resort, catches anything remaining
   for (const m of html.matchAll(EMAIL_RE)) {
     candidates.add(m[0].toLowerCase());
   }
@@ -180,40 +245,60 @@ function extractEmails(rawHtml: string): string[] {
       const [, domain] = e.split('@');
       if (!domain || domain.length < 3) return false;
       if (IGNORE_DOMAINS.has(domain)) return false;
-      if (/\.(png|jpg|gif|svg|ico|css|js|woff|ttf|woff2|mp4)$/.test(domain)) return false;
+      if (/\.(png|jpg|gif|svg|ico|css|js|woff|ttf|woff2|mp4|webp)$/.test(domain)) return false;
       if (e.includes('..') || e.startsWith('.') || e.endsWith('.')) return false;
       if (e.length > 80) return false;
+      // Must have a valid TLD (at least 2 chars after final dot)
+      if (!/\.[a-z]{2,}$/.test(domain)) return false;
       return true;
     })
     .sort((a, b) => scoreEmail(b) - scoreEmail(a));
+}
+
+// ─── Phone extraction ─────────────────────────────────────────────────────────
+
+// International phone regex — handles +49, 0049, 004..., +1, +44, +33, +971, etc.
+const PHONE_RE = /(?:\+|00)[\d\s\-().]{7,18}\d|\b0[\d\s\-/().]{6,16}\d/g;
+
+function extractPhones(html: string): string[] {
+  // Strip HTML tags first for cleaner matching
+  const text = html.replace(/<[^>]+>/g, ' ');
+  const found = new Set<string>();
+  for (const m of text.matchAll(PHONE_RE)) {
+    const clean = m[0].replace(/[\s\-().]/g, '').replace(/^00/, '+');
+    if (clean.length >= 7 && clean.length <= 16) found.add(clean);
+  }
+  // Also check tel: links
+  for (const m of html.matchAll(/href=["']tel:([^"'\s]+)["']/gi)) {
+    const v = m[1].replace(/[\s\-().]/g, '');
+    if (v.length >= 7) found.add(v);
+  }
+  return [...found];
 }
 
 // ─── Page discovery ───────────────────────────────────────────────────────────
 
 function discoverContactLinks(html: string, origin: string): string[] {
   const found = new Set<string>();
-
-  // Scan all href attributes on the page
   for (const m of html.matchAll(/href=["']([^"'#?]+)["']/gi)) {
     const href = m[1].trim();
     const lower = href.toLowerCase();
-    if (!CONTACT_SLUGS.some((slug) => lower.includes(slug))) continue;
+    if (!PRIORITY_SLUGS.some((slug) => lower.includes(slug))) continue;
     try {
       const abs = new URL(href, origin).href;
       if (abs.startsWith(origin)) found.add(abs);
-    } catch { /* relative URL parsing failed */ }
+    } catch { /* skip */ }
   }
-
-  return [...found].slice(0, 8); // cap to avoid runaway
+  return [...found].slice(0, 10);
 }
 
 async function discoverSitemapUrls(origin: string): Promise<string[]> {
   try {
-    const xml = await fetchHtml(`${origin}/sitemap.xml`, 5_000);
+    const xml = await fetchHtml(`${origin}/sitemap.xml`, 4_000);
     const urls: string[] = [];
     for (const m of xml.matchAll(/<loc>\s*([^<]+)\s*<\/loc>/gi)) {
       const url = m[1].trim();
-      if (CONTACT_SLUGS.some((slug) => url.toLowerCase().includes(slug))) {
+      if (PRIORITY_SLUGS.some((slug) => url.toLowerCase().includes(slug))) {
         urls.push(url);
       }
     }
@@ -228,15 +313,16 @@ async function discoverSitemapUrls(origin: string): Promise<string[]> {
 function detectBuilder(html: string, url: string): string | null {
   const h = html.toLowerCase();
   if (h.includes('static.wixstatic.com') || h.includes('wix.com/_api') || url.includes('.wixsite.com')) return 'Wix';
-  if (h.includes('jimdo.com') || h.includes('jimdofree.com') || h.includes('jimdosite.com')) return 'Jimdo';
-  if (h.includes('ionos-homepage') || h.includes('mein1und1') || h.includes('homepage-baukasten')) return 'IONOS';
-  if (h.includes('godaddysites.com') || h.includes('secureserver.net/hosted_images')) return 'GoDaddy';
+  if (h.includes('jimdo.com') || h.includes('jimdofree.com')) return 'Jimdo';
+  if (h.includes('ionos-homepage') || h.includes('mein1und1')) return 'IONOS';
+  if (h.includes('godaddysites.com') || h.includes('secureserver.net')) return 'GoDaddy';
   if (h.includes('squarespace.com') || h.includes('sqsp.net')) return 'Squarespace';
   if (h.includes('weebly.com') || h.includes('weeblycloud.com')) return 'Weebly';
   if (h.includes('mystrikingly.com') || h.includes('strikingly.com')) return 'Strikingly';
-  if (h.includes('yolasite.com') || h.includes('yola.com')) return 'Yola';
-  if (h.includes('homepage-erstellen.de') || h.includes('sitebuilder.de')) return 'Baukasten';
   if (h.includes('pagefly') || h.includes('myshopify.com')) return 'Shopify';
+  if (h.includes('wordpress') || h.includes('/wp-content/') || h.includes('/wp-includes/')) return 'WordPress';
+  if (h.includes('typo3') || h.includes('t3_') || h.includes('typo3conf')) return 'TYPO3';
+  if (h.includes('joomla') || h.includes('/components/com_')) return 'Joomla';
   return null;
 }
 
@@ -265,16 +351,17 @@ function extractMeta(html: string): { title: string | null; description: string 
   const descMatch =
     html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']{1,200})["']/i) ??
     html.match(/<meta[^>]+content=["']([^"']{1,200})["'][^>]+name=["']description["']/i);
-  const title = titleMatch ? titleMatch[1].trim().replace(/\s+/g, ' ') : null;
-  const description = descMatch ? descMatch[1].trim().replace(/\s+/g, ' ') : null;
-  return { title, description };
+  return {
+    title: titleMatch ? titleMatch[1].trim().replace(/\s+/g, ' ') : null,
+    description: descMatch ? descMatch[1].trim().replace(/\s+/g, ' ') : null,
+  };
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export async function analyzeWebsite(url: string): Promise<WebsiteAnalysis> {
   const empty: WebsiteAnalysis = {
-    email: null, builder: null, isModern: false,
+    email: null, phone: null, builder: null, isModern: false,
     hasViewport: false, isHttps: url.startsWith('https://'),
     language: 'unknown', pageTitle: null, metaDescription: null,
   };
@@ -283,9 +370,13 @@ export async function analyzeWebsite(url: string): Promise<WebsiteAnalysis> {
     const base = new URL(url);
     const origin = base.origin;
 
-    // ── Step 1: fetch main page ───────────────────────────────────────────────
+    // ── Step 1: fetch main page (with http fallback) ──────────────────────────
     let mainHtml = '';
-    try { mainHtml = await fetchHtml(url); } catch { return empty; }
+    try {
+      mainHtml = await fetchHtmlWithFallback(url);
+    } catch {
+      return empty;
+    }
 
     const builder = detectBuilder(mainHtml, url);
     const isModern = detectModern(mainHtml);
@@ -293,56 +384,104 @@ export async function analyzeWebsite(url: string): Promise<WebsiteAnalysis> {
     const language = detectLanguage(mainHtml);
     const { title: pageTitle, description: metaDescription } = extractMeta(mainHtml);
 
-    // ── Step 2: discover all contact pages in parallel ────────────────────────
-    const hardcoded = CONTACT_SLUGS.flatMap((slug) => [
-      `${origin}/${slug}`,
-      `${origin}/${slug}.html`,
-      `${origin}/${slug}/`,
-    ]);
+    // Extract from main page immediately
+    let allEmails = extractEmailsFromHtml(mainHtml);
+    let allPhones = extractPhones(mainHtml);
 
-    const discovered = discoverContactLinks(mainHtml, origin);
-
-    // Run sitemap discovery concurrently while we already have pages to try
-    const [sitemapUrls] = await Promise.allSettled([discoverSitemapUrls(origin)]);
-    const fromSitemap = sitemapUrls.status === 'fulfilled' ? sitemapUrls.value : [];
-
-    // Merge: discovered links first (most likely correct), then hardcoded + sitemap
-    const allPages = [
-      url,
-      ...discovered,
-      ...fromSitemap,
-      ...hardcoded,
-    ];
-
-    // Deduplicate
-    const uniquePages = [...new Set(allPages)].slice(0, 20);
-
-    // ── Step 3: fetch all pages in parallel (concurrency = 6) ─────────────────
-    const CONCURRENCY = 6;
-    const allEmails: string[] = [];
-
-    // Extract from main page first (already have it)
-    allEmails.push(...extractEmails(mainHtml));
-
-    // Batch remaining pages with concurrency limit
-    const remaining = uniquePages.filter((p) => p !== url);
-    for (let i = 0; i < remaining.length; i += CONCURRENCY) {
-      const batch = remaining.slice(i, i + CONCURRENCY);
-      const results = await Promise.allSettled(batch.map((p) => fetchHtml(p)));
-      for (const r of results) {
-        if (r.status === 'fulfilled') {
-          allEmails.push(...extractEmails(r.value));
-        }
-      }
-      // Stop early if we already have a high-quality email
-      if (allEmails.some((e) => scoreEmail(e) >= 10)) break;
+    // Early exit: if we already have a high-quality business email, no need to crawl further
+    const hasGoodEmail = () => allEmails.some((e) => scoreEmail(e) >= 13);
+    if (hasGoodEmail()) {
+      return {
+        email: allEmails[0],
+        phone: allPhones[0] ?? null,
+        builder, isModern, hasViewport,
+        isHttps: url.startsWith('https://'),
+        language, pageTitle, metaDescription,
+      };
     }
 
-    // Pick best email across all pages
-    const ranked = [...new Set(allEmails)].sort((a, b) => scoreEmail(b) - scoreEmail(a));
-    const email = ranked[0] ?? null;
+    // ── Step 2: build prioritised page list ───────────────────────────────────
 
-    return { email, builder, isModern, hasViewport, isHttps: url.startsWith('https://'), language, pageTitle, metaDescription };
+    // High-priority hardcoded pages (top 8 checked in parallel first)
+    const topPriority = [
+      `${origin}/impressum`,
+      `${origin}/kontakt`,
+      `${origin}/contact`,
+      `${origin}/about`,
+      `${origin}/ueber-uns`,
+      `${origin}/en/contact`,
+      `${origin}/de/kontakt`,
+      `${origin}/de/impressum`,
+    ];
+
+    // Discovered links from main page
+    const discovered = discoverContactLinks(mainHtml, origin);
+
+    // Sitemap concurrently
+    const sitemapPromise = discoverSitemapUrls(origin);
+
+    // ── Step 3: fetch top-priority pages in parallel ──────────────────────────
+    const topResults = await Promise.allSettled(
+      topPriority.map((p) => fetchHtml(p, 5_000))
+    );
+
+    for (const r of topResults) {
+      if (r.status === 'fulfilled') {
+        allEmails.push(...extractEmailsFromHtml(r.value));
+        allPhones.push(...extractPhones(r.value));
+      }
+    }
+
+    if (hasGoodEmail()) {
+      const ranked = [...new Set(allEmails)].sort((a, b) => scoreEmail(b) - scoreEmail(a));
+      return {
+        email: ranked[0],
+        phone: allPhones[0] ?? null,
+        builder, isModern, hasViewport,
+        isHttps: url.startsWith('https://'),
+        language, pageTitle, metaDescription,
+      };
+    }
+
+    // ── Step 4: discovered + sitemap pages ────────────────────────────────────
+    const sitemapUrls = await sitemapPromise;
+
+    const secondWave = [
+      ...discovered,
+      ...sitemapUrls,
+      // Extended hardcoded slugs not in top priority
+      ...PRIORITY_SLUGS
+        .filter((s) => !['impressum','kontakt','contact','about','ueber-uns'].includes(s))
+        .flatMap((slug) => [`${origin}/${slug}`, `${origin}/${slug}/`]),
+    ];
+
+    // Deduplicate against already-fetched pages
+    const fetched = new Set([url, ...topPriority]);
+    const uniqueSecond = [...new Set(secondWave)].filter((u) => !fetched.has(u)).slice(0, 15);
+
+    const CONCURRENCY = 5;
+    for (let i = 0; i < uniqueSecond.length; i += CONCURRENCY) {
+      const batch = uniqueSecond.slice(i, i + CONCURRENCY);
+      const results = await Promise.allSettled(batch.map((p) => fetchHtml(p, 5_000)));
+      for (const r of results) {
+        if (r.status === 'fulfilled') {
+          allEmails.push(...extractEmailsFromHtml(r.value));
+          allPhones.push(...extractPhones(r.value));
+        }
+      }
+      if (hasGoodEmail()) break;
+    }
+
+    const ranked = [...new Set(allEmails)].sort((a, b) => scoreEmail(b) - scoreEmail(a));
+    const rankedPhones = [...new Set(allPhones)];
+
+    return {
+      email: ranked[0] ?? null,
+      phone: rankedPhones[0] ?? null,
+      builder, isModern, hasViewport,
+      isHttps: url.startsWith('https://'),
+      language, pageTitle, metaDescription,
+    };
   } catch {
     return empty;
   }

@@ -10,6 +10,7 @@ export async function POST(req: NextRequest) {
     const analysis = await analyzeWebsite(website);
     return NextResponse.json({
       email: analysis.email,
+      phone: analysis.phone,
       builder: analysis.builder,
       isModern: analysis.isModern,
       language: analysis.language,

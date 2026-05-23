@@ -73,8 +73,8 @@ export default function LeadCard({ lead, index, onViewMessage, onEmailFound, con
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ website: lead.website }),
       });
-      const { email } = await res.json();
-      if (email && onEmailFound) onEmailFound(lead.place_id, email);
+      const data = await res.json();
+      if (data.email && onEmailFound) onEmailFound(lead.place_id, data.email);
     } finally {
       setScrapingEmail(false);
       setScrapeAttempted(true);

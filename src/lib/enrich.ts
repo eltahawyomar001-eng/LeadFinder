@@ -58,6 +58,11 @@ export function enrichLeadWithAnalysis(
 ): void {
   lead.email = analysis.email;
 
+  // Backfill phone from website if OSM/Google didn't provide one
+  if (!lead.phone && analysis.phone) {
+    lead.phone = analysis.phone;
+  }
+
   if (analysis.builder) {
     lead.website_builder = analysis.builder;
   }
