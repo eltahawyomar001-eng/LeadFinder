@@ -51,14 +51,27 @@ interface WarmupStatus {
 
 // ─── Column config ────────────────────────────────────────────────────────────
 
-const COLUMNS: { key: CardStatus; label: string; emoji: string; color: string; bg: string; border: string }[] = [
-  { key: 'contacted', label: 'Contacted',     emoji: '📤', color: '#93c5fd', bg: '#0c1a2e', border: '#1e3a5f' },
-  { key: 'replied',   label: 'Replied',        emoji: '💬', color: '#fbbf24', bg: '#1c1208', border: '#78350f' },
-  { key: 'meeting',   label: 'Meeting',        emoji: '📅', color: '#a78bfa', bg: '#12082a', border: '#4c1d95' },
-  { key: 'proposal',  label: 'Proposal',       emoji: '📄', color: '#f472b6', bg: '#1f0a18', border: '#831843' },
-  { key: 'won',       label: 'Won',            emoji: '✅', color: '#4ade80', bg: '#052e16', border: '#166534' },
-  { key: 'lost',      label: 'Lost',           emoji: '❌', color: '#64748b', bg: '#0f172a', border: '#1e293b' },
+const COLUMNS: { key: CardStatus; label: string; color: string; bg: string; border: string }[] = [
+  { key: 'contacted', label: 'Contacted', color: '#93c5fd', bg: '#0c1a2e', border: '#1e3a5f' },
+  { key: 'replied',   label: 'Replied',   color: '#fbbf24', bg: '#1c1208', border: '#78350f' },
+  { key: 'meeting',   label: 'Meeting',   color: '#a78bfa', bg: '#12082a', border: '#4c1d95' },
+  { key: 'proposal',  label: 'Proposal',  color: '#f472b6', bg: '#1f0a18', border: '#831843' },
+  { key: 'won',       label: 'Won',       color: '#4ade80', bg: '#052e16', border: '#166534' },
+  { key: 'lost',      label: 'Lost',      color: '#64748b', bg: '#0f172a', border: '#1e293b' },
 ];
+
+function ColumnIcon({ status, size = 12 }: { status: CardStatus; size?: number }) {
+  const p = { width: size, height: size, fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, flexShrink: 0 };
+  switch (status) {
+    case 'contacted': return <svg viewBox="0 0 24 24" {...p}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>;
+    case 'replied':   return <svg viewBox="0 0 24 24" {...p}><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>;
+    case 'meeting':   return <svg viewBox="0 0 24 24" {...p}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>;
+    case 'proposal':  return <svg viewBox="0 0 24 24" {...p}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>;
+    case 'won':       return <svg viewBox="0 0 24 24" {...p}><polyline points="20 6 9 17 4 12"/></svg>;
+    case 'lost':      return <svg viewBox="0 0 24 24" {...p}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+    default:          return null;
+  }
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -132,7 +145,12 @@ function SequenceTimeline({ sequences, onSendNow }: { sequences: SequenceRow[]; 
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <span style={{ color: '#475569', fontSize: '12px', fontWeight: 700 }}>Step {seq.step}</span>
                 <span style={{ backgroundColor: st.bg, border: `1px solid ${st.border}`, color: st.color, borderRadius: '999px', padding: '2px 8px', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase' }}>
-                  {isOverdue ? '⚠ OVERDUE' : st.label}
+                  {isOverdue ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                      <svg width={9} height={9} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                      OVERDUE
+                    </span>
+                  ) : st.label}
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -218,23 +236,31 @@ function DetailModal({
             <p style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 800, lineHeight: 1.2, marginBottom: '4px' }}>{lead.name}</p>
             {lead.email && <p style={{ color: '#60a5fa', fontSize: '13px', fontFamily: 'monospace' }}>{lead.email}</p>}
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', padding: '4px', fontSize: '20px', lineHeight: 1 }}>✕</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', padding: '6px', display: 'flex', alignItems: 'center', minHeight: 'unset' }}>
+            <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
 
         <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
           {/* Stage + quick info */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-            <span style={{ backgroundColor: col.bg, border: `1px solid ${col.border}`, color: col.color, borderRadius: '999px', padding: '4px 12px', fontSize: '12px', fontWeight: 700 }}>
-              {col.emoji} {col.label}
+            <span style={{ backgroundColor: col.bg, border: `1px solid ${col.border}`, color: col.color, borderRadius: '999px', padding: '4px 12px', fontSize: '12px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+              <ColumnIcon status={col.key} size={11} /> {col.label}
             </span>
             {lead.website && (
               <a href={lead.website} target="_blank" rel="noopener noreferrer" style={{ color: '#475569', fontSize: '12px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                🌐 {lead.website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]}
-                <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
+                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+                {lead.website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]}
+                <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
               </a>
             )}
-            {lead.phone && <span style={{ color: '#475569', fontSize: '12px' }}>📞 {lead.phone}</span>}
+            {lead.phone && (
+              <span style={{ color: '#475569', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg>
+                {lead.phone}
+              </span>
+            )}
             <span style={{ color: '#334155', fontSize: '11px' }}>Added {timeAgo(card.created_at)}</span>
           </div>
 
@@ -246,9 +272,9 @@ function DetailModal({
                 <button
                   key={c.key}
                   onClick={() => onMove(c.key)}
-                  style={{ backgroundColor: c.bg, border: `1px solid ${c.border}`, color: c.color, borderRadius: '8px', padding: '6px 14px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                  style={{ backgroundColor: c.bg, border: `1px solid ${c.border}`, color: c.color, borderRadius: '8px', padding: '6px 14px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
                 >
-                  {c.emoji} {c.label}
+                  <ColumnIcon status={c.key} size={11} /> {c.label}
                 </button>
               ))}
             </div>
@@ -307,7 +333,12 @@ function DetailModal({
               disabled={unsub}
               style={{ flex: 1, backgroundColor: '#1c0a08', border: '1px solid #78350f', color: '#fbbf24', borderRadius: '10px', padding: '10px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', opacity: unsub ? 0.6 : 1 }}
             >
-              {unsub ? 'Unsubscribing…' : '🚫 Mark Unsubscribed'}
+              {unsub ? 'Unsubscribing…' : (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                  Mark Unsubscribed
+                </span>
+              )}
             </button>
             <button
               onClick={async () => {
@@ -318,7 +349,12 @@ function DetailModal({
               disabled={deleting}
               style={{ flex: 1, backgroundColor: '#450a0a', border: '1px solid #7f1d1d', color: '#fca5a5', borderRadius: '10px', padding: '10px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', opacity: deleting ? 0.6 : 1 }}
             >
-              {deleting ? 'Deleting…' : '🗑 Delete Lead'}
+              {deleting ? 'Deleting…' : (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                  Delete Lead
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -439,7 +475,7 @@ export default function CrmPage() {
     <div style={{ minHeight: '100vh', backgroundColor: '#020609', display: 'flex', flexDirection: 'column' }}>
 
       {/* Sticky header */}
-      <header style={{ borderBottom: '1px solid #1e293b', backgroundColor: 'rgba(2,6,9,0.97)', backdropFilter: 'blur(8px)', position: 'sticky', top: 0, zIndex: 50 }}>
+      <header style={{ borderBottom: '1px solid #0a1628', backgroundColor: 'rgba(2,6,9,0.96)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', position: 'sticky', top: 0, zIndex: 50, paddingTop: 'env(safe-area-inset-top, 0px)' }}>
         <div style={{ maxWidth: '1600px', margin: '0 auto', padding: '0 20px', height: '56px', display: 'flex', alignItems: 'center', gap: '16px' }}>
           <Link href="/" style={{ color: '#475569', fontSize: '13px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
             <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 5l-7 7 7 7" /></svg>
@@ -530,8 +566,8 @@ export default function CrmPage() {
                 {/* Column header */}
                 <div style={{ marginBottom: '10px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ color: col.color, fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                      {col.emoji} {col.label}
+                    <span style={{ color: col.color, fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <ColumnIcon status={col.key} size={12} /> {col.label}
                     </span>
                     <span style={{ backgroundColor: col.bg, border: `1px solid ${col.border}`, color: col.color, borderRadius: '999px', padding: '2px 7px', fontSize: '11px', fontWeight: 800 }}>
                       {colCards.length}
@@ -582,7 +618,10 @@ export default function CrmPage() {
                             {fu.label}
                           </div>
                         ) : allDone ? (
-                          <div style={{ fontSize: '10px', color: '#166534', marginBottom: '8px', fontWeight: 700 }}>✓ Sequence complete</div>
+                          <div style={{ fontSize: '10px', color: '#166534', marginBottom: '8px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                            <svg width={9} height={9} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                            Sequence complete
+                          </div>
                         ) : null}
 
                         {/* Value */}

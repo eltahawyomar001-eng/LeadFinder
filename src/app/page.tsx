@@ -262,10 +262,10 @@ export default function HomePage() {
         {/* Hero */}
         <div style={{ marginBottom: '20px' }}>
           <h2 style={{ fontSize: '22px', fontWeight: 800, color: '#f1f5f9', lineHeight: 1.2, marginBottom: '8px' }}>
-            Find Leads — Germany, UK, USA, Saudi Arabia &amp; UAE
+            Find Business Leads Worldwide
           </h2>
           <p style={{ color: '#64748b', fontSize: '14px', lineHeight: 1.6, maxWidth: '560px' }}>
-            Find businesses that need a better website. Scrapes emails, analyzes website quality (filters out modern sites automatically), and generates personalized pitches in German, English, or Arabic — based on the company&apos;s own language.
+            Discover businesses with weak online presence in any country. Scrapes emails, scores website quality, and generates personalized cold outreach in German, English, or Arabic — matched to the company&apos;s own language.
           </p>
         </div>
 

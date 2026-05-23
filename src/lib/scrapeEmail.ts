@@ -31,15 +31,41 @@ const IGNORE_PREFIXES = new Set([
   'bounce', 'bounces',
 ]);
 
-// Contact-like URL path segments (DE + EN + AR)
+// Contact-like URL path segments — all major world languages
 const CONTACT_SLUGS = [
-  'impressum', 'kontakt', 'contact', 'kontaktieren',
-  'about', 'about-us', 'ueber-uns', 'über-uns', 'team',
-  'datenschutz', 'datenschutzerklaerung',
-  'anfahrt', 'oeffnungszeiten',
-  'en/contact', 'en/about', 'de/kontakt',
-  'contact-us', 'get-in-touch', 'reach-us',
-  'اتصل', 'تواصل',
+  // ── German ────────────────────────────────────────────
+  'impressum', 'kontakt', 'kontaktieren', 'ueber-uns', 'über-uns',
+  'anfahrt', 'oeffnungszeiten', 'datenschutz', 'datenschutzerklaerung',
+  // ── English ───────────────────────────────────────────
+  'contact', 'contact-us', 'about', 'about-us', 'get-in-touch',
+  'reach-us', 'reach-out', 'team', 'our-team', 'find-us',
+  'connect', 'enquire', 'enquiries', 'help', 'support',
+  // ── French ────────────────────────────────────────────
+  'contactez-nous', 'nous-contacter', 'a-propos', 'qui-sommes-nous',
+  'mentions-legales', 'coordonnees', 'plan-dacces', 'nous-joindre',
+  // ── Spanish ───────────────────────────────────────────
+  'contacto', 'contactar', 'sobre-nosotros', 'quienes-somos',
+  'donde-estamos', 'encuentranos', 'escribenos', 'aviso-legal',
+  // ── Italian ───────────────────────────────────────────
+  'contatti', 'contattaci', 'chi-siamo', 'dove-siamo', 'scrivici',
+  // ── Portuguese ────────────────────────────────────────
+  'contato', 'contacto', 'fale-conosco', 'sobre-nos', 'quem-somos',
+  'fale-connosco', 'entre-em-contacto',
+  // ── Dutch ─────────────────────────────────────────────
+  'over-ons', 'neem-contact-op', 'bereikbaarheid', 'contacteer-ons',
+  // ── Polish ────────────────────────────────────────────
+  'o-nas', 'znajdz-nas', 'skontaktuj-sie',
+  // ── Turkish ───────────────────────────────────────────
+  'iletisim', 'hakkimizda', 'bize-ulasin', 'bize-yazin',
+  // ── Swedish / Nordic ──────────────────────────────────
+  'kontakta-oss', 'om-oss', 'hitta-oss',
+  // ── Russian ───────────────────────────────────────────
+  'kontakty', 'o-nas', 'svyazatsya',
+  // ── Arabic ────────────────────────────────────────────
+  'اتصل', 'تواصل', 'من-نحن', 'اتصل-بنا', 'تواصل-معنا',
+  // ── Multilingual path prefixes ────────────────────────
+  'en/contact', 'en/about', 'de/kontakt', 'fr/contact',
+  'es/contacto', 'it/contatti', 'nl/contact', 'pt/contacto',
 ];
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
@@ -89,7 +115,20 @@ function scoreEmail(email: string): number {
   const [local, domain] = email.split('@');
   if (!domain) return -1;
   // Prefer business-domain emails over free providers
-  const freeDomains = new Set(['gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com', 'icloud.com', 'me.com', 'yahoo.de']);
+  const freeDomains = new Set([
+    // Global
+    'gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com', 'icloud.com', 'me.com',
+    'live.com', 'msn.com', 'aol.com', 'protonmail.com', 'pm.me',
+    // German
+    'yahoo.de', 'gmx.de', 'gmx.net', 'web.de', 't-online.de',
+    // French
+    'wanadoo.fr', 'orange.fr', 'free.fr', 'laposte.net', 'sfr.fr', 'hotmail.fr', 'yahoo.fr',
+    // UK
+    'btinternet.com', 'sky.com', 'talktalk.net', 'virginmedia.com', 'hotmail.co.uk', 'yahoo.co.uk',
+    // Other regional
+    'libero.it', 'tin.it', 'alice.it', 'terra.com.br', 'uol.com.br',
+    'mail.ru', 'yandex.ru', 'list.ru', 'bk.ru',
+  ]);
   let score = freeDomains.has(domain) ? 0 : 10;
   // Prefer short local parts (info@, contact@, hallo@) over long random ones
   if (local.length < 20) score += 3;

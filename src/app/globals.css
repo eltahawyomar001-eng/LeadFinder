@@ -2,6 +2,15 @@
 
 :root {
   color-scheme: dark;
+
+  /* iOS / Android safe areas */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+
+  /* Bottom nav height — matches BottomNav component */
+  --nav-h: 60px;
 }
 
 *, *::before, *::after {
@@ -12,30 +21,37 @@
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* prevent font size change on orientation change on iOS */
   -webkit-text-size-adjust: 100%;
+  height: 100%;
 }
 
 body {
   background-color: #020609;
   color: #e2e8f0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, Helvetica, Arial, sans-serif;
-  /* prevent horizontal scroll on mobile */
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   overflow-x: hidden;
+  /* leave room for bottom nav on mobile */
+  padding-bottom: calc(var(--nav-h) + var(--sab));
 }
 
-/* inputs must be 16px on iOS or it zooms */
+/* On sm+ screens (≥640px), hide bottom nav → no extra padding */
+@media (min-width: 640px) {
+  body {
+    padding-bottom: 0;
+  }
+}
+
+/* inputs: 16px on iOS prevents auto-zoom */
 input, select, textarea {
   font-size: 16px;
 }
-
-@media (min-width: 768px) {
+@media (min-width: 640px) {
   input, select, textarea {
     font-size: 14px;
   }
 }
 
-/* touch targets min 44px */
+/* minimum tap target */
 button, a {
   min-height: 44px;
   display: inline-flex;
@@ -43,14 +59,15 @@ button, a {
 }
 
 ::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: #0f172a; }
-::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+::-webkit-scrollbar-track { background: #0a0f1a; }
+::-webkit-scrollbar-thumb { background: #1e3a5f; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #2563eb; }
 
 input[type='range'] {
   -webkit-appearance: none;
   appearance: none;
   height: 6px;
-  background: #334155;
+  background: #1e293b;
   border-radius: 9999px;
   outline: none;
 }
@@ -80,7 +97,12 @@ select {
 }
 
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(12px); }
+  from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.fade-in-up { animation: fadeInUp 0.25s ease-out forwards; }
+.fade-in-up { animation: fadeInUp 0.22s ease-out forwards; }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.animate-spin { animation: spin 0.9s linear infinite; }
