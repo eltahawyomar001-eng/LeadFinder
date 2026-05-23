@@ -2,16 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { getSupabase } from '@/lib/supabase';
 import { checkWarmup, logSend } from '@/lib/warmup';
-import { generateFollowUpPitch } from '@/lib/whatsapp';
+import { generateEmailPitch, generateFollowUpPitch } from '@/lib/whatsapp';
 import { detectBodyLang, unsubscribeFooter } from '@/lib/emailFooter';
+import { getPageSpeed } from '@/lib/pagespeed';
 import type { Lead } from '@/types';
 import type { PitchLang, Country } from '@/types';
 
-export const maxDuration = 15;
+export const maxDuration = 30;
 
-function addDays(date: Date, days: number): Date {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
+// Returns next Tuesday or Thursday at 09:00 UTC, at least minDays after `after`
+function nextBestSendTime(after: Date, minDays: number): Date {
+  const d = new Date(after);
+  d.setUTCDate(d.getUTCDate() + minDays);
+  d.setUTCHours(9, 0, 0, 0);
+  // offsets to reach next Tue(2) or Thu(4): Sun+2, Mon+1, Tue+0, Wed+1, Thu+0, Fri+4, Sat+3
+  const offsets = [2, 1, 0, 1, 0, 4, 3];
+  d.setUTCDate(d.getUTCDate() + offsets[d.getUTCDay()]);
   return d;
 }
 
@@ -77,15 +83,35 @@ export async function POST(req: NextRequest) {
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://lead-finder-vert.vercel.app';
     const lang: PitchLang = detectBodyLang(lead.email_body) as PitchLang;
+    const country: Country = ((lead as unknown as Record<string, unknown>).country as Country) ?? (lang === 'ar' ? 'ae' : lang === 'en' ? 'gb' : 'de');
+    const calendlyUrl = process.env.CALENDLY_URL ?? undefined;
+
+    // Fetch PageSpeed score and optionally regenerate step 1 pitch with score
+    let step1Subject = lead.email_subject;
+    let step1BodyRaw = lead.email_body;
+    if (lead.website) {
+      const ps = await getPageSpeed(lead.website);
+      if (ps && ps.score <= 59) {
+        const refreshed = generateEmailPitch(lead.name, lead.weakness_reasons ?? [], lang, country, {
+          builder: lead.website_builder ?? undefined,
+          noWebsite: !lead.website,
+          pageSpeedScore: ps.score,
+          pageSpeedLoad: ps.loadTime,
+        });
+        step1Subject = refreshed.subject;
+        step1BodyRaw = refreshed.body;
+      }
+    }
+
     const unsub = unsubscribeFooter(leadId, lang as 'de' | 'en' | 'ar', baseUrl);
-    const step1Body = lead.email_body + unsub;
+    const step1Body = step1BodyRaw + unsub;
 
     const resend = new Resend(resendKey);
     const { error: sendErr } = await resend.emails.send({
       from: `${fromName} <${fromEmail}>`,
       replyTo: fromEmail,
       to: lead.email,
-      subject: lead.email_subject,
+      subject: step1Subject,
       text: step1Body,
     });
     if (sendErr) throw new Error(sendErr.message);
@@ -93,12 +119,9 @@ export async function POST(req: NextRequest) {
     // Log step 1 send
     await logSend({ leadId });
 
-    const country: Country = 'de';
-    const calendlyUrl = process.env.CALENDLY_URL ?? undefined;
-
     const now = new Date();
 
-    // Generate + store step 1 as sent, steps 2 & 3 as pending
+    // Generate + store step 1 as sent, steps 2 & 3 as pending (Tue/Thu 9am UTC)
     const step2 = generateFollowUpPitch(2, lead.name, lead.weakness_reasons ?? [], lang, country, {
       builder: lead.website_builder ?? undefined,
       noWebsite: !lead.website,
@@ -116,14 +139,14 @@ export async function POST(req: NextRequest) {
         status: 'sent',
         scheduled_for: now.toISOString(),
         sent_at: now.toISOString(),
-        subject: lead.email_subject,
+        subject: step1Subject,
         body: step1Body,
       },
       {
         lead_id: leadId,
         step: 2,
         status: 'pending',
-        scheduled_for: addDays(now, 3).toISOString(),
+        scheduled_for: nextBestSendTime(now, 3).toISOString(),
         subject: step2.subject,
         body: step2Body,
       },
@@ -131,7 +154,7 @@ export async function POST(req: NextRequest) {
         lead_id: leadId,
         step: 3,
         status: 'pending',
-        scheduled_for: addDays(now, 7).toISOString(),
+        scheduled_for: nextBestSendTime(now, 6).toISOString(),
         subject: step3.subject,
         body: step3Body,
       },

@@ -11,6 +11,8 @@ export interface PitchContext {
   pageTitle?: string | null;
   metaDescription?: string | null;
   calendlyUrl?: string | null;
+  pageSpeedScore?: number;
+  pageSpeedLoad?: string;
   reasons: string[];
 }
 
@@ -47,6 +49,54 @@ function calendlyCTA(ctx: PitchContext): string {
   if (ctx.lang === 'de') return `\n\nOder direkt einen Termin buchen (15 Min.): ${ctx.calendlyUrl}`;
   if (ctx.lang === 'ar') return `\n\nأو احجز موعداً مباشرة (15 دقيقة): ${ctx.calendlyUrl}`;
   return `\n\nOr book a free 15-minute call directly: ${ctx.calendlyUrl}`;
+}
+
+// ─── PageSpeed opener — injects score into subject + body prefix ──────────────
+
+function pageSpeedOpener(ctx: PitchContext): { subjectOverride?: string; bodyPrefix: string } {
+  const { pageSpeedScore: score, pageSpeedLoad: loadTime, name, lang } = ctx;
+  if (score == null || score > 59) return { bodyPrefix: '' };
+
+  const loadNote = loadTime
+    ? lang === 'de' ? ` — Ladezeit: ${loadTime}` : lang === 'ar' ? ` — وقت التحميل: ${loadTime}` : ` — load time: ${loadTime}`
+    : '';
+
+  if (lang === 'de') {
+    const severity = score < 30 ? 'kritisch' : 'zu langsam';
+    return {
+      subjectOverride: `${name} — PageSpeed ${score}/100 (${severity})`,
+      bodyPrefix:
+        `Ich habe Ihre Website kurz durch Google PageSpeed analysiert: Score ${score}/100 auf Mobilgeräten${loadNote}.\n\n` +
+        `Das bedeutet: Besucher verlassen die Seite, bevor sie geladen ist — und Google wertet das als schlechtes Nutzererlebnis, ` +
+        `was sich direkt auf Ihr Ranking auswirkt.\n\n`,
+    };
+  }
+
+  if (lang === 'ar') {
+    return {
+      subjectOverride: `${name} — سرعة الموقع ${score}/100`,
+      bodyPrefix:
+        `أجريت تحليلاً لموقعكم عبر Google PageSpeed: النتيجة ${score}/100 للأجهزة المحمولة${loadNote}.\n\n` +
+        `هذا يعني أن الزوار يغادرون الصفحة قبل اكتمال تحميلها — وجوجل يُخفّض ترتيبكم في نتائج البحث بسبب ذلك مباشرةً.\n\n`,
+    };
+  }
+
+  return {
+    subjectOverride: `${name} — PageSpeed ${score}/100 on mobile`,
+    bodyPrefix:
+      `I ran your website through Google PageSpeed: score ${score}/100 on mobile${loadNote}.\n\n` +
+      `That translates directly: visitors leave before the page loads, and Google ranks you lower for it.\n\n`,
+  };
+}
+
+function applyOpener(
+  result: { subject: string; body: string },
+  opener: { subjectOverride?: string; bodyPrefix: string },
+): { subject: string; body: string } {
+  return {
+    subject: opener.subjectOverride ?? result.subject,
+    body: opener.bodyPrefix + result.body,
+  };
 }
 
 // ─── GERMAN pitches — Step 1 ──────────────────────────────────────────────────
@@ -573,10 +623,14 @@ export function generateEmailPitch(
     reasons,
     noWebsite: reasons.some((r) => r.includes('keine eigene Website') || r.includes('no website')),
     ...extra,
+    calendlyUrl: undefined, // Calendly only in step 3
   };
-  if (lang === 'ar') return pitchAR(ctx);
-  if (lang === 'en') return pitchEN(ctx);
-  return pitchDE(ctx);
+  const opener = pageSpeedOpener(ctx);
+  let result: { subject: string; body: string };
+  if (lang === 'ar') result = pitchAR(ctx);
+  else if (lang === 'en') result = pitchEN(ctx);
+  else result = pitchDE(ctx);
+  return applyOpener(result, opener);
 }
 
 export function generateFollowUpPitch(
@@ -597,6 +651,7 @@ export function generateFollowUpPitch(
   };
 
   if (step === 2) {
+    ctx.calendlyUrl = undefined; // Calendly only in step 3
     if (lang === 'ar') return followUp2AR(ctx);
     if (lang === 'en') return followUp2EN(ctx);
     return followUp2DE(ctx);
