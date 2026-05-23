@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import type { Lead, SearchResponse, Source } from '@/types';
+import type { Lead, SearchResponse, Source, Country } from '@/types';
+import { COUNTRY_INFO } from '@/types';
 import { GERMAN_STATES } from '@/lib/states';
 import Header from '@/components/Header';
 import SearchForm from '@/components/SearchForm';
@@ -38,24 +39,25 @@ export default function HomePage() {
   const [mobileOnly, setMobileOnly] = useState(false);
   const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null);
   const [contactedIds, setContactedIds] = useState(new Set<string>());
+  const [activeCountry, setActiveCountry] = useState<Country>('de');
 
   // ── helpers ──────────────────────────────────────────────────────────────
 
-  const fetchOsmState = async (category: string, stateName: string): Promise<SearchResponse> => {
+  const fetchOsmState = async (category: string, stateName: string, country: Country): Promise<SearchResponse> => {
     const res = await fetch('/api/overpass', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category, stateName }),
+      body: JSON.stringify({ category, stateName, country }),
     });
     if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'Overpass failed'); }
     return res.json();
   };
 
-  const fetchOsmCity = async (category: string, city: string, radius: number): Promise<SearchResponse> => {
+  const fetchOsmCity = async (category: string, city: string, radius: number, country: Country): Promise<SearchResponse> => {
     const res = await fetch('/api/overpass', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category, city, radius }),
+      body: JSON.stringify({ category, city, radius, country }),
     });
     if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'Overpass failed'); }
     return res.json();
@@ -75,7 +77,8 @@ export default function HomePage() {
     source: Exclude<Source, 'osm' | 'google'>,
     category: string,
     city: string,
-    radius: number
+    radius: number,
+    country: Country,
   ): Promise<SearchResponse> => {
     const endpointMap: Record<Exclude<Source, 'osm' | 'google'>, string> = {
       here: '/api/here',
@@ -90,7 +93,7 @@ export default function HomePage() {
     const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category, city, radius }),
+      body: JSON.stringify({ category, city, radius, country }),
     });
     if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? `${SOURCE_LABELS[source]} failed`); }
     return res.json();
@@ -98,7 +101,7 @@ export default function HomePage() {
 
   // ── all-Germany sequential scan ───────────────────────────────────────────
 
-  const handleAllGermanyScan = async (category: string) => {
+  const handleAllGermanyScan = async (category: string, country: Country) => {
     setLoading(true);
     setError(null);
     setResult(null);
@@ -114,7 +117,7 @@ export default function HomePage() {
       setScanProgress({ current: i + 1, total: GERMAN_STATES.length, stateName: state.name });
 
       try {
-        const data = await fetchOsmState(category, state.osmName);
+        const data = await fetchOsmState(category, state.osmName, country);
         const newLeads = data.leads.filter((l) => {
           if (seenIds.has(l.place_id)) return false;
           seenIds.add(l.place_id);
@@ -138,12 +141,13 @@ export default function HomePage() {
 
   // ── main search handler ───────────────────────────────────────────────────
 
-  const handleSearch = async (category: string, location: string, radius: number, source: Source) => {
+  const handleSearch = async (category: string, location: string, radius: number, source: Source, country: Country) => {
+    setActiveCountry(country);
     setSearchState({ category, location, radius, source });
 
     // All-Germany sequential scan (OSM only)
     if (location === '__ALL__') {
-      await handleAllGermanyScan(category);
+      await handleAllGermanyScan(category, country);
       return;
     }
 
@@ -156,7 +160,7 @@ export default function HomePage() {
       setNextPageToken(undefined);
       setScanProgress({ current: 1, total: 1, stateName });
       try {
-        const data = await fetchOsmState(category, stateName);
+        const data = await fetchOsmState(category, stateName, country);
         setResult(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Something went wrong');
@@ -176,14 +180,12 @@ export default function HomePage() {
     try {
       let data: SearchResponse;
       if (source === 'osm') {
-        data = await fetchOsmCity(category, location, radius);
+        data = await fetchOsmCity(category, location, radius, country);
       } else if (source === 'google') {
         data = await fetchGoogle(category, location, radius);
         setNextPageToken(data.nextPageToken);
       } else {
-        // All other sources (here, yelp, foursquare, dasoertliche, gelbeseiten, eleveneighty, multi)
-        // location here is the city name from GERMAN_CITIES
-        data = await fetchSource(source, category, location, radius);
+        data = await fetchSource(source, category, location, radius, country);
       }
       setResult(data);
     } catch (err) {
@@ -260,10 +262,10 @@ export default function HomePage() {
         {/* Hero */}
         <div style={{ marginBottom: '20px' }}>
           <h2 style={{ fontSize: '22px', fontWeight: 800, color: '#f1f5f9', lineHeight: 1.2, marginBottom: '8px' }}>
-            Find Leads Across Germany
+            Find Leads — Germany, UK, USA, Saudi Arabia &amp; UAE
           </h2>
           <p style={{ color: '#64748b', fontSize: '14px', lineHeight: 1.6, maxWidth: '560px' }}>
-            Find local German businesses that need a better website. Scrapes emails automatically (including Impressum pages) and generates personalized German email pitches — scored by priority.
+            Find businesses that need a better website. Scrapes emails, analyzes website quality (filters out modern sites automatically), and generates personalized pitches in German, English, or Arabic — based on the company&apos;s own language.
           </p>
         </div>
 

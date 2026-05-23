@@ -26,14 +26,18 @@ interface Props {
   index: number;
   onViewMessage: (lead: Lead) => void;
   onEmailFound?: (placeId: string, email: string) => void;
+  contacted?: boolean;
+  onContacted?: (placeId: string) => void;
 }
 
-export default function LeadCard({ lead, index, onViewMessage, onEmailFound }: Props) {
+export default function LeadCard({ lead, index, onViewMessage, onEmailFound, contacted, onContacted }: Props) {
   const priority = getPriority(lead.weakness_score);
   const ps = PRIORITY_STYLE[priority];
 
   const [scrapingEmail, setScrapingEmail] = useState(false);
   const [scrapeAttempted, setScrapeAttempted] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   const handleFindEmail = async () => {
     if (!lead.website || scrapingEmail) return;
@@ -54,6 +58,30 @@ export default function LeadCard({ lead, index, onViewMessage, onEmailFound }: P
 
   const mailtoHref = `mailto:${lead.email ?? ''}?subject=${encodeURIComponent(lead.email_subject ?? '')}&body=${encodeURIComponent(lead.email_body ?? '')}`;
   const noEmailYet = !lead.email && !scrapeAttempted;
+
+  const handleGmailSend = async () => {
+    if (!lead.email || sending || contacted) return;
+    setSending(true);
+    setSendError(null);
+    try {
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: lead.email,
+          subject: lead.email_subject ?? '',
+          body: lead.email_body ?? '',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Send failed');
+      if (onContacted) onContacted(lead.place_id);
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Send failed');
+    } finally {
+      setSending(false);
+    }
+  };
 
   return (
     <div style={{ backgroundColor: '#0a1628', border: '1px solid #1e293b', borderRadius: '16px', overflow: 'hidden' }}>
@@ -143,32 +171,72 @@ export default function LeadCard({ lead, index, onViewMessage, onEmailFound }: P
       {/* Actions */}
       <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
 
-        {/* Primary: Send Email (green when email found) */}
-        {lead.email ? (
-          <a
-            href={mailtoHref}
-            style={{
-              width: '100%',
-              backgroundColor: '#15803d',
-              color: '#fff',
-              borderRadius: '12px',
-              padding: '13px 16px',
-              fontSize: '14px',
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              textDecoration: 'none',
-            }}
-          >
-            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-              <polyline points="22,6 12,13 2,6" />
-            </svg>
-            Send Email — {lead.email}
-          </a>
-        ) : lead.website && noEmailYet ? (
+        {/* Primary: Gmail send when email found */}
+        {lead.email && (
+          <>
+            {contacted ? (
+              <div style={{
+                width: '100%', backgroundColor: '#052e16', border: '1px solid #166534',
+                color: '#4ade80', borderRadius: '12px', padding: '12px 16px',
+                fontSize: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+              }}>
+                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                Sent to {lead.email}
+              </div>
+            ) : (
+              <button
+                onClick={handleGmailSend}
+                disabled={sending}
+                style={{
+                  width: '100%',
+                  backgroundColor: sending ? '#0f172a' : '#15803d',
+                  border: `1px solid ${sending ? '#334155' : '#166534'}`,
+                  color: '#fff',
+                  borderRadius: '12px',
+                  padding: '13px 16px',
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  cursor: sending ? 'not-allowed' : 'pointer',
+                  opacity: sending ? 0.7 : 1,
+                }}
+              >
+                {sending ? (
+                  <>
+                    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}>
+                      <path d="M21 12a9 9 0 11-6.219-8.56" />
+                    </svg>
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+                    </svg>
+                    Send via Gmail — {lead.email}
+                  </>
+                )}
+              </button>
+            )}
+            {sendError && (
+              <p style={{ color: '#f87171', fontSize: '12px', margin: '0', textAlign: 'center' }}>{sendError}</p>
+            )}
+            {/* Fallback mailto link */}
+            {!contacted && (
+              <a href={mailtoHref} style={{ color: '#475569', fontSize: '12px', textAlign: 'center', textDecoration: 'underline' }}>
+                or open in email client instead
+              </a>
+            )}
+          </>
+        )}
+
+        {/* Find email section */}
+        {!lead.email && lead.website && noEmailYet ? (
           /* Has website but email not found yet — offer to search */
           <button
             onClick={handleFindEmail}

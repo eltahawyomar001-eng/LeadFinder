@@ -8,6 +8,8 @@ import MessageModal from './MessageModal';
 interface Props {
   leads: Lead[];
   onEmailFound?: (placeId: string, email: string) => void;
+  contactedIds?: Set<string>;
+  onContacted?: (placeId: string) => void;
 }
 
 const PRIORITY: Record<string, { label: string; bg: string; border: string; text: string; dot: string }> = {
@@ -18,6 +20,54 @@ const PRIORITY: Record<string, { label: string; bg: string; border: string; text
 
 function priorityKey(score: number) {
   return score >= 6 ? 'high' : score >= 3 ? 'medium' : 'low';
+}
+
+// Inline Gmail send button for table rows
+function GmailBtn({ lead, contacted, onContacted }: { lead: Lead; contacted?: boolean; onContacted?: (id: string) => void }) {
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState(false);
+
+  if (contacted) {
+    return <span style={{ color: '#4ade80', fontSize: '11px', fontWeight: 600 }}>Sent</span>;
+  }
+
+  const handleSend = async () => {
+    if (sending || !lead.email) return;
+    setSending(true);
+    setError(false);
+    try {
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: lead.email, subject: lead.email_subject ?? '', body: lead.email_body ?? '' }),
+      });
+      if (!res.ok) throw new Error();
+      if (onContacted) onContacted(lead.place_id);
+    } catch {
+      setError(true);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <button onClick={handleSend} disabled={sending} title={error ? 'Send failed — retry' : 'Send via Gmail'}
+      style={{
+        backgroundColor: error ? 'rgba(127,29,29,0.3)' : 'rgba(21,128,61,0.15)',
+        border: `1px solid ${error ? '#7f1d1d' : '#166534'}`,
+        color: error ? '#f87171' : '#4ade80',
+        borderRadius: '6px', padding: '3px 8px', fontSize: '11px', fontWeight: 600,
+        cursor: sending ? 'not-allowed' : 'pointer',
+        display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap',
+      }}
+    >
+      {sending
+        ? <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 11-6.219-8.56" /></svg>
+        : <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+      }
+      {error ? 'Retry' : sending ? 'Sending' : 'Send'}
+    </button>
+  );
 }
 
 // Inline scrape button for table rows
@@ -80,7 +130,7 @@ function ScrapeBtn({ lead, onEmailFound }: { lead: Lead; onEmailFound?: (id: str
   );
 }
 
-export default function ResultsTable({ leads, onEmailFound }: Props) {
+export default function ResultsTable({ leads, onEmailFound, contactedIds, onContacted }: Props) {
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
 
   if (leads.length === 0) return null;
@@ -90,7 +140,7 @@ export default function ResultsTable({ leads, onEmailFound }: Props) {
       {/* ── Mobile: stacked cards ─────────────────────────────────────────── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }} className="md:hidden">
         {leads.map((lead, i) => (
-          <LeadCard key={lead.place_id} lead={lead} index={i} onViewMessage={setActiveLead} onEmailFound={onEmailFound} />
+          <LeadCard key={lead.place_id} lead={lead} index={i} onViewMessage={setActiveLead} onEmailFound={onEmailFound} contacted={contactedIds?.has(lead.place_id)} onContacted={onContacted} />
         ))}
       </div>
 

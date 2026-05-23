@@ -1,25 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { searchOverpass } from '@/lib/overpass';
-import { scrapeEmailFromWebsite } from '@/lib/scrapeEmail';
-import { GERMAN_CITIES } from '@/lib/cities';
+import { analyzeWebsite } from '@/lib/scrapeEmail';
+import { enrichLeadWithAnalysis } from '@/lib/enrich';
+import { findCity } from '@/lib/locations';
 import { GERMAN_STATES } from '@/lib/states';
-import type { SearchResponse } from '@/types';
+import { COUNTRY_INFO } from '@/types';
+import type { SearchResponse, Country, PitchLang } from '@/types';
 
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
-    const { category, city, stateName, radius = 5 } = await req.json() as {
+    const { category, city, stateName, radius = 5, country = 'de' } = await req.json() as {
       category: string;
       city?: string;
       stateName?: string;
       radius?: number;
+      country?: Country;
     };
 
     if (!category) {
       return NextResponse.json({ error: 'category is required' }, { status: 400 });
     }
 
+    const countryLang: PitchLang = COUNTRY_INFO[country]?.defaultLang ?? 'de';
     let lat = 0, lng = 0, radiusM = 0;
 
     if (stateName) {
@@ -30,7 +34,7 @@ export async function POST(req: NextRequest) {
       lat = stateData.lat;
       lng = stateData.lng;
     } else if (city) {
-      const cityData = GERMAN_CITIES.find((c) => c.name === city);
+      const cityData = findCity(city, country) ?? findCity(city);
       if (!cityData) {
         return NextResponse.json({ error: 'Unknown city' }, { status: 400 });
       }
@@ -41,17 +45,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'city or stateName required' }, { status: 400 });
     }
 
-    const leads = await searchOverpass(category, lat, lng, radiusM, stateName);
+    const leads = await searchOverpass(category, lat, lng, radiusM, stateName, countryLang);
 
-    // Scrape emails for leads that have a website.
-    // For state queries cap at top 50 (already sorted by score) to stay within the 60s timeout.
+    // Analyze websites: email scraping + quality scoring + language detection
     const withWebsite = leads.filter((l) => l.website);
-    const toScrape = stateName ? withWebsite.slice(0, 50) : withWebsite;
+    const toAnalyze = stateName ? withWebsite.slice(0, 50) : withWebsite;
 
-    const emails = await Promise.all(
-      toScrape.map((l) => scrapeEmailFromWebsite(l.website!))
-    );
-    toScrape.forEach((l, i) => { l.email = emails[i]; });
+    const analyses = await Promise.all(toAnalyze.map((l) => analyzeWebsite(l.website!)));
+    toAnalyze.forEach((l, i) => enrichLeadWithAnalysis(l, analyses[i], countryLang));
+
+    // Re-sort after score adjustments
+    leads.sort((a, b) => b.weakness_score - a.weakness_score);
 
     const response: SearchResponse = {
       leads,

@@ -16,6 +16,7 @@ export interface Lead {
   email: string | null;
   email_subject: string | null;
   email_body: string | null;
+  website_builder?: string;
 }
 
 export interface SearchRequest {
@@ -33,11 +34,22 @@ export interface SearchResponse {
   highPriority: number;
 }
 
+export type Country = 'de' | 'gb' | 'us' | 'sa' | 'ae';
+export type PitchLang = 'de' | 'en' | 'ar';
+
 export interface GermanCity {
   name: string;
   lat: number;
   lng: number;
   state: string;
+}
+
+export interface City {
+  name: string;
+  lat: number;
+  lng: number;
+  region: string;
+  country: Country;
 }
 
 export interface GermanState {
@@ -48,6 +60,14 @@ export interface GermanState {
 }
 
 export type Priority = 'high' | 'medium' | 'low';
+
+export const COUNTRY_INFO: Record<Country, { name: string; defaultLang: PitchLang }> = {
+  de: { name: 'Germany',        defaultLang: 'de' },
+  gb: { name: 'United Kingdom', defaultLang: 'en' },
+  us: { name: 'United States',  defaultLang: 'en' },
+  sa: { name: 'Saudi Arabia',   defaultLang: 'ar' },
+  ae: { name: 'UAE',            defaultLang: 'ar' },
+};
 
 export type Source =
   | 'google'

@@ -1,24 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { searchFoursquare } from '@/lib/foursquare';
-import { scrapeEmailFromWebsite } from '@/lib/scrapeEmail';
-import { GERMAN_CITIES } from '@/lib/cities';
-import type { SearchResponse } from '@/types';
+import { analyzeWebsite } from '@/lib/scrapeEmail';
+import { enrichLeadWithAnalysis } from '@/lib/enrich';
+import { findCity } from '@/lib/locations';
+import { COUNTRY_INFO } from '@/types';
+import type { SearchResponse, Country, PitchLang } from '@/types';
 
 export const maxDuration = 30;
 
 export async function POST(req: NextRequest) {
   try {
-    const { category, city, radius = 5 } = await req.json() as {
+    const { category, city, radius = 5, country = 'de' } = await req.json() as {
       category: string;
       city: string;
       radius?: number;
+      country?: Country;
     };
 
     if (!category || !city) {
       return NextResponse.json({ error: 'category and city are required' }, { status: 400 });
     }
 
-    const cityData = GERMAN_CITIES.find((c) => c.name === city);
+    const countryLang: PitchLang = COUNTRY_INFO[country]?.defaultLang ?? 'de';
+    const cityData = findCity(city, country) ?? findCity(city);
     if (!cityData) {
       return NextResponse.json({ error: 'Unknown city' }, { status: 400 });
     }
@@ -26,10 +30,11 @@ export async function POST(req: NextRequest) {
     const radiusM = radius * 1000;
     const leads = await searchFoursquare(category, cityData.lat, cityData.lng, radiusM);
 
-    // Scrape emails for top 20 leads with websites
     const withWebsite = leads.filter((l) => l.website).slice(0, 20);
-    const emails = await Promise.all(withWebsite.map((l) => scrapeEmailFromWebsite(l.website!)));
-    withWebsite.forEach((l, i) => { l.email = emails[i]; });
+    const analyses = await Promise.all(withWebsite.map((l) => analyzeWebsite(l.website!)));
+    withWebsite.forEach((l, i) => enrichLeadWithAnalysis(l, analyses[i], countryLang));
+
+    leads.sort((a, b) => b.weakness_score - a.weakness_score);
 
     const response: SearchResponse = {
       leads,

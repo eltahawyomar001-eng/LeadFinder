@@ -1,12 +1,13 @@
-export function generateEmailPitch(businessName: string, reasons: string[]): {
-  subject: string;
-  body: string;
-} {
+type PitchLang = 'de' | 'en' | 'ar';
+
+function pitchDE(businessName: string, reasons: string[]): { subject: string; body: string } {
   const noWebsite = reasons.some((r) => r.includes('keine eigene Website'));
+  const badBuilder = reasons.some((r) => r.includes('Baukasten'));
+  const notMobile = reasons.some((r) => r.includes('mobiloptimiert'));
   const fewReviews = reasons.some((r) => r.includes('Bewertungen'));
+  const needsUpgrade = badBuilder || notMobile;
 
   let body: string;
-
   if (noWebsite) {
     body =
       `Sehr geehrte Damen und Herren,\n\n` +
@@ -28,14 +29,30 @@ export function generateEmailPitch(businessName: string, reasons: string[]): {
       `omarragehfulda@gmail.com\n` +
       `+49 176 55093674\n` +
       `omar-portfolio.xyz`;
+  } else if (needsUpgrade) {
+    body =
+      `Sehr geehrte Damen und Herren,\n\n` +
+      `mein Name ist Omar Rageh – Full-Stack-Entwickler aus Fulda, spezialisiert auf professionelle ` +
+      `Unternehmenswebsites mit Next.js und React.\n\n` +
+      `Ich bin auf Ihr Unternehmen „${businessName}" aufmerksam geworden. Ihre aktuelle Website hat noch ` +
+      `erhebliches Verbesserungspotenzial – besonders bei der mobilen Darstellung und der Ladegeschwindigkeit. ` +
+      `Eine professionelle, moderne Website kann Ihnen deutlich mehr Anfragen und Vertrauen bei neuen Kunden bringen.\n\n` +
+      `Was ich konkret anbiete:\n` +
+      `• Komplett neue, schnelle Website mit Next.js & React\n` +
+      `• Vollständig mobiloptimiert und Google-ready\n` +
+      `• SSL, strukturierte Daten, SEO-Grundoptimierung inklusive\n` +
+      `• Klarer, fairer Festpreis – kein Abo, keine Folgekosten\n\n` +
+      `Referenzen: omar-portfolio.xyz\n\n` +
+      `Wäre ein kurzes, kostenloses Gespräch möglich? Ich zeige Ihnen konkret, was ich für Sie tun kann.\n\n` +
+      `Mit freundlichen Grüßen,\n\nOmar Rageh\n` +
+      `omarragehfulda@gmail.com · +49 176 55093674 · omar-portfolio.xyz`;
   } else if (fewReviews) {
     body =
       `Sehr geehrte Damen und Herren,\n\n` +
       `mein Name ist Omar Rageh – Webentwickler aus Fulda. Ich helfe lokalen Unternehmen dabei, ` +
       `ihre Sichtbarkeit im Internet gezielt zu verbessern.\n\n` +
-      `Ich habe Ihr Unternehmen „${businessName}" auf Google Maps gefunden und gesehen, ` +
-      `dass Ihre Online-Präsenz noch Potenzial hat. Mit einer professionellen, modernen Website ` +
-      `und einer stärkeren Online-Strategie können Sie deutlich mehr Neukunden gewinnen.\n\n` +
+      `Ich habe Ihr Unternehmen „${businessName}" gefunden und gesehen, dass Ihre Online-Präsenz ` +
+      `noch Potenzial hat. Mit einer professionellen, modernen Website können Sie deutlich mehr Neukunden gewinnen.\n\n` +
       `Was ich konkret anbiete:\n` +
       `• Neue oder überarbeitete Website mit Next.js & React\n` +
       `• Bessere Auffindbarkeit bei Google-Suchen in Ihrer Region\n` +
@@ -50,8 +67,7 @@ export function generateEmailPitch(businessName: string, reasons: string[]): {
       `mein Name ist Omar Rageh – Full-Stack-Entwickler aus Fulda, spezialisiert auf moderne ` +
       `Websites und Web-Applikationen für lokale Unternehmen.\n\n` +
       `Ich bin auf „${businessName}" aufmerksam geworden und würde Ihnen gerne zeigen, ` +
-      `wie ich Ihre Online-Präsenz weiter stärken kann – ob durch eine neue Website, ` +
-      `eine Überarbeitung des bestehenden Auftritts oder gezielte Optimierungen.\n\n` +
+      `wie ich Ihre Online-Präsenz weiter stärken kann.\n\n` +
       `Meine Arbeiten: omar-portfolio.xyz\n\n` +
       `Ich freue mich auf Ihre Rückmeldung.\n\n` +
       `Mit freundlichen Grüßen,\n\nOmar Rageh\n` +
@@ -60,9 +76,151 @@ export function generateEmailPitch(businessName: string, reasons: string[]): {
 
   const subject = noWebsite
     ? `Professionelle Website für ${businessName} – Angebot von Omar Rageh`
+    : needsUpgrade
+    ? `Ihre Website hat Potenzial – professionelles Upgrade für ${businessName}`
     : `Mehr Kunden online gewinnen – Webentwicklung für ${businessName}`;
 
   return { subject, body };
+}
+
+function pitchEN(businessName: string, reasons: string[]): { subject: string; body: string } {
+  const noWebsite = reasons.some((r) =>
+    r.includes('no website') || r.includes('keine eigene Website') || r.includes('Website'));
+  const badBuilder = reasons.some((r) => r.includes('builder') || r.includes('Baukasten'));
+  const notMobile = reasons.some((r) => r.includes('mobile') || r.includes('mobiloptimiert'));
+  const needsUpgrade = badBuilder || notMobile;
+
+  let body: string;
+  if (noWebsite && !needsUpgrade) {
+    body =
+      `Dear ${businessName} Team,\n\n` +
+      `My name is Omar Rageh — I'm a full-stack web developer based in Germany, specialized in building ` +
+      `modern, fast business websites using Next.js, React, and Tailwind CSS.\n\n` +
+      `I came across your business and noticed you don't have a website yet. ` +
+      `Without an online presence, you're missing out on customers who search for your services every day.\n\n` +
+      `What I can offer you:\n` +
+      `• Fast, mobile-first website — ready in days, not months\n` +
+      `• Google visibility with basic SEO included\n` +
+      `• Transparent fixed pricing — no hidden fees, no monthly subscriptions\n` +
+      `• Direct, personal communication throughout the project\n\n` +
+      `See my previous work at: omar-portfolio.xyz\n\n` +
+      `I'd love to show you exactly what I can build for you — a free, no-obligation conversation is all it takes.\n\n` +
+      `Best regards,\nOmar Rageh\n` +
+      `Full-Stack Developer & Automation Builder\n` +
+      `omarragehfulda@gmail.com\n` +
+      `+49 176 55093674\n` +
+      `omar-portfolio.xyz`;
+  } else if (needsUpgrade) {
+    body =
+      `Dear ${businessName} Team,\n\n` +
+      `My name is Omar Rageh — a full-stack web developer based in Germany, specialized in ` +
+      `Next.js, React, and Tailwind CSS.\n\n` +
+      `I came across your business online. Your current website has significant room for improvement — ` +
+      `particularly around mobile responsiveness and performance. A professionally built site can meaningfully ` +
+      `increase trust with new customers and drive more enquiries.\n\n` +
+      `What I can deliver:\n` +
+      `• Brand-new, fast website with Next.js & React\n` +
+      `• Fully mobile-optimized, Google-ready\n` +
+      `• SSL, structured data, SEO basics included\n` +
+      `• One clear fixed price — no subscriptions, no surprises\n\n` +
+      `Portfolio: omar-portfolio.xyz\n\n` +
+      `Would you be open to a quick, free call? I'll show you exactly what I'd build.\n\n` +
+      `Best regards,\nOmar Rageh\n` +
+      `omarragehfulda@gmail.com · +49 176 55093674 · omar-portfolio.xyz`;
+  } else {
+    body =
+      `Dear ${businessName} Team,\n\n` +
+      `My name is Omar Rageh — a full-stack developer based in Germany, specialized in modern ` +
+      `websites and web applications with Next.js and React.\n\n` +
+      `I came across your business and believe I can help strengthen your online presence — ` +
+      `whether through a new website, a redesign, or targeted improvements.\n\n` +
+      `My work: omar-portfolio.xyz\n\n` +
+      `Would you be open to a short conversation?\n\n` +
+      `Best regards,\nOmar Rageh\n` +
+      `omarragehfulda@gmail.com · +49 176 55093674 · omar-portfolio.xyz`;
+  }
+
+  const subject = noWebsite && !needsUpgrade
+    ? `Professional website for ${businessName} — Omar Rageh, Web Developer`
+    : needsUpgrade
+    ? `Your website can do much more — proposal for ${businessName}`
+    : `Grow your business online — web development for ${businessName}`;
+
+  return { subject, body };
+}
+
+function pitchAR(businessName: string, reasons: string[]): { subject: string; body: string } {
+  const noWebsite = reasons.some((r) =>
+    r.includes('keine eigene Website') || r.includes('no website') || r.includes('موقع'));
+  const badBuilder = reasons.some((r) => r.includes('builder') || r.includes('Baukasten') || r.includes('بنظام'));
+  const notMobile = reasons.some((r) => r.includes('mobile') || r.includes('mobiloptimiert') || r.includes('جوال'));
+  const needsUpgrade = badBuilder || notMobile;
+
+  let body: string;
+  if (noWebsite && !needsUpgrade) {
+    body =
+      `السادة الكرام،\n\n` +
+      `اسمي عمر راجح — مطور ويب متكامل متخصص في بناء مواقع إلكترونية احترافية وسريعة باستخدام ` +
+      `Next.js وReact وTailwind CSS.\n\n` +
+      `لفت انتباهي عملكم "${businessName}"، ولاحظت أنكم لا تمتلكون موقعًا إلكترونيًا بعد. ` +
+      `في ظل التنافس الرقمي اليوم، الشركات التي لا تمتلك حضورًا على الإنترنت تخسر عملاء يبحثون عن خدماتكم يوميًا.\n\n` +
+      `ما أستطيع تقديمه لكم:\n` +
+      `• موقع سريع ومتوافق مع الجوال — جاهز في أيام قليلة\n` +
+      `• ظهور في نتائج جوجل (تحسين SEO أساسي مدرج)\n` +
+      `• سعر ثابت وشفاف — بدون رسوم شهرية أو تكاليف مخفية\n` +
+      `• تواصل مباشر وشخصي طوال مراحل المشروع\n\n` +
+      `يمكنكم الاطلاع على أعمالي السابقة على: omar-portfolio.xyz\n\n` +
+      `يسعدني تقديم استشارة مجانية وبدون أي التزام.\n\n` +
+      `مع أطيب التحيات،\nعمر راجح\n` +
+      `مطور ويب متكامل\n` +
+      `omarragehfulda@gmail.com\n` +
+      `+49 176 55093674\n` +
+      `omar-portfolio.xyz`;
+  } else if (needsUpgrade) {
+    body =
+      `السادة الكرام،\n\n` +
+      `اسمي عمر راجح — مطور ويب متكامل متخصص في Next.js وReact وTailwind CSS.\n\n` +
+      `اطلعت على موقع "${businessName}" الإلكتروني، ولاحظت أن هناك مجالًا كبيرًا للتحسين — ` +
+      `خاصةً من حيث التوافق مع الأجهزة المحمولة والسرعة. موقع احترافي ومتطور يمكن أن يزيد ` +
+      `الثقة لدى العملاء الجدد ويرفع معدل الاستفسارات بشكل ملحوظ.\n\n` +
+      `ما أقدمه:\n` +
+      `• موقع جديد كامل بتقنية Next.js وReact\n` +
+      `• متوافق تمامًا مع الجوال وجاهز لمحركات البحث\n` +
+      `• SSL وبيانات منظمة وتحسين SEO أساسي مدرجة\n` +
+      `• سعر ثابت وواضح — بدون اشتراكات أو مفاجآت\n\n` +
+      `أعمالي: omar-portfolio.xyz\n\n` +
+      `هل يمكننا تحديد موعد لمكالمة قصيرة ومجانية لأوضح لكم ما يمكنني تقديمه؟\n\n` +
+      `مع أطيب التحيات،\nعمر راجح\n` +
+      `omarragehfulda@gmail.com · +49 176 55093674 · omar-portfolio.xyz`;
+  } else {
+    body =
+      `السادة الكرام،\n\n` +
+      `اسمي عمر راجح — مطور ويب متكامل متخصص في المواقع الإلكترونية الحديثة باستخدام Next.js وReact.\n\n` +
+      `لفت انتباهي عملكم "${businessName}"، ويسعدني مساعدتكم في تقوية حضوركم الرقمي — ` +
+      `سواء من خلال موقع جديد أو تطوير الموجود أو تحسينات محددة.\n\n` +
+      `أعمالي: omar-portfolio.xyz\n\n` +
+      `أتطلع إلى تواصلكم.\n\n` +
+      `مع أطيب التحيات،\nعمر راجح\n` +
+      `omarragehfulda@gmail.com · +49 176 55093674 · omar-portfolio.xyz`;
+  }
+
+  const subject = noWebsite && !needsUpgrade
+    ? `موقع إلكتروني احترافي لـ ${businessName} — عمر راجح، مطور ويب`
+    : needsUpgrade
+    ? `موقعكم يستحق تطويرًا احترافيًا — عرض لـ ${businessName}`
+    : `نمّوا أعمالكم رقميًا — تطوير ويب لـ ${businessName}`;
+
+  return { subject, body };
+}
+
+export function generateEmailPitch(
+  businessName: string,
+  reasons: string[],
+  lang: PitchLang = 'de'
+): { subject: string; body: string } {
+  if (lang === 'en') return pitchEN(businessName, reasons);
+  if (lang === 'ar') return pitchAR(businessName, reasons);
+  return pitchDE(businessName, reasons);
 }
 
 // German mobile prefixes: 015x, 016x, 017x — these are on WhatsApp

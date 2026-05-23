@@ -6,9 +6,11 @@ import { searchFoursquare } from '@/lib/foursquare';
 import { searchDasOertliche } from '@/lib/dasoertliche';
 import { searchGelbeSeiten } from '@/lib/gelbeseiten';
 import { searchElevenEighty } from '@/lib/eleveneighty';
-import { scrapeEmailFromWebsite } from '@/lib/scrapeEmail';
-import { GERMAN_CITIES } from '@/lib/cities';
-import type { Lead, SearchResponse } from '@/types';
+import { analyzeWebsite } from '@/lib/scrapeEmail';
+import { enrichLeadWithAnalysis } from '@/lib/enrich';
+import { findCity } from '@/lib/locations';
+import { COUNTRY_INFO } from '@/types';
+import type { Lead, SearchResponse, Country, PitchLang } from '@/types';
 
 export const maxDuration = 60;
 
@@ -28,17 +30,19 @@ function contactScore(lead: Lead): number {
 
 export async function POST(req: NextRequest) {
   try {
-    const { category, city, radius = 5 } = await req.json() as {
+    const { category, city, radius = 5, country = 'de' } = await req.json() as {
       category: string;
       city: string;
       radius?: number;
+      country?: Country;
     };
 
     if (!category || !city) {
       return NextResponse.json({ error: 'category and city are required' }, { status: 400 });
     }
 
-    const cityData = GERMAN_CITIES.find((c) => c.name === city);
+    const countryLang: PitchLang = COUNTRY_INFO[country]?.defaultLang ?? 'de';
+    const cityData = findCity(city, country) ?? findCity(city);
     if (!cityData) {
       return NextResponse.json({ error: 'Unknown city' }, { status: 400 });
     }
@@ -48,7 +52,7 @@ export async function POST(req: NextRequest) {
 
     // Run all sources in parallel
     const results = await Promise.allSettled([
-      searchOverpass(category, lat, lng, radiusM),
+      searchOverpass(category, lat, lng, radiusM, undefined, countryLang),
       searchHere(category, lat, lng, radiusM),
       searchYelp(category, lat, lng, radiusM),
       searchFoursquare(category, lat, lng, radiusM),
@@ -77,10 +81,10 @@ export async function POST(req: NextRequest) {
 
     const deduped = [...dedupMap.values()];
 
-    // Scrape emails for top 30 with websites
+    // Analyze websites for top 30 (quality scoring + email + language)
     const withWebsite = deduped.filter((l) => l.website && !l.email).slice(0, 30);
-    const emails = await Promise.all(withWebsite.map((l) => scrapeEmailFromWebsite(l.website!)));
-    withWebsite.forEach((l, i) => { l.email = emails[i]; });
+    const analyses = await Promise.all(withWebsite.map((l) => analyzeWebsite(l.website!)));
+    withWebsite.forEach((l, i) => enrichLeadWithAnalysis(l, analyses[i], countryLang));
 
     // Sort by weakness score descending
     deduped.sort((a, b) => b.weakness_score - a.weakness_score);

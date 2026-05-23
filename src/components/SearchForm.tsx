@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { GERMAN_CITIES } from '@/lib/cities';
+import { citiesByCountry } from '@/lib/locations';
 import { GERMAN_STATES } from '@/lib/states';
 import { BUSINESS_CATEGORIES } from '@/lib/categories';
 import { SearchIcon, LoaderIcon } from './icons';
-import type { Source } from '@/types';
+import type { Source, Country, COUNTRY_INFO } from '@/types';
+import { COUNTRY_INFO as CI } from '@/types';
 
 // Sources that do NOT support All Germany or By State
 const CITY_ONLY_SOURCES: Source[] = [
@@ -14,7 +15,7 @@ const CITY_ONLY_SOURCES: Source[] = [
 ];
 
 interface Props {
-  onSearch: (category: string, location: string, radius: number, source: Source) => void;
+  onSearch: (category: string, location: string, radius: number, source: Source, country: Country) => void;
   loading: boolean;
 }
 
@@ -23,6 +24,7 @@ export default function SearchForm({ onSearch, loading }: Props) {
   const [location, setLocation] = useState('');
   const [source, setSource] = useState<Source>('osm');
   const [radius, setRadius] = useState(5);
+  const [country, setCountry] = useState<Country>('de');
 
   const isStateOrAll = location === '__ALL__' || location.startsWith('state:');
   const isCityOnlySource = CITY_ONLY_SOURCES.includes(source);
@@ -30,16 +32,27 @@ export default function SearchForm({ onSearch, loading }: Props) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!category || !location) return;
-    onSearch(category, location, radius, source);
+    onSearch(category, location, radius, source, country);
   };
 
   const handleSourceChange = (val: Source) => {
     setSource(val);
-    // Reset location if it's OSM-only and new source doesn't support it
     if (CITY_ONLY_SOURCES.includes(val) && (location === '__ALL__' || location.startsWith('state:'))) {
       setLocation('');
     }
   };
+
+  const handleCountryChange = (val: Country) => {
+    setCountry(val);
+    setLocation('');
+    // Non-DE countries don't support All Germany or state scans
+    if (val !== 'de' && (location === '__ALL__' || location.startsWith('state:'))) {
+      setLocation('');
+    }
+    // Non-DE countries only work with OSM for best coverage
+  };
+
+  const countryCities = citiesByCountry(country).sort((a, b) => a.name.localeCompare(b.name));
 
   const inputBase: React.CSSProperties = {
     width: '100%',
@@ -76,6 +89,22 @@ export default function SearchForm({ onSearch, loading }: Props) {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {/* Country select */}
+        <div>
+          <label style={{ display: 'block', color: '#64748b', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+            Country
+          </label>
+          <select
+            value={country}
+            onChange={(e) => handleCountryChange(e.target.value as Country)}
+            style={selectWithArrow}
+          >
+            {(Object.entries(CI) as [Country, { name: string }][]).map(([code, info]) => (
+              <option key={code} value={code}>{info.name}</option>
+            ))}
+          </select>
+        </div>
+
         {/* Source select */}
         <div>
           <label style={{ display: 'block', color: '#64748b', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
@@ -148,13 +177,13 @@ export default function SearchForm({ onSearch, loading }: Props) {
             >
               <option value="">Select location...</option>
 
-              {source === 'osm' && (
+              {source === 'osm' && country === 'de' && (
                 <optgroup label="Whole Germany">
                   <option value="__ALL__">All of Germany — all 16 Bundesländer</option>
                 </optgroup>
               )}
 
-              {source === 'osm' && (
+              {source === 'osm' && country === 'de' && (
                 <optgroup label="By State (Bundesland)">
                   {GERMAN_STATES.map((s) => (
                     <option key={s.osmName} value={`state:${s.osmName}`}>{s.name}</option>
@@ -163,8 +192,8 @@ export default function SearchForm({ onSearch, loading }: Props) {
               )}
 
               <optgroup label="By City">
-                {GERMAN_CITIES.sort((a, b) => a.name.localeCompare(b.name)).map((c) => (
-                  <option key={c.name} value={c.name}>{c.name} ({c.state})</option>
+                {countryCities.map((c) => (
+                  <option key={`${c.country}_${c.name}`} value={c.name}>{c.name} ({c.region})</option>
                 ))}
               </optgroup>
             </select>
@@ -176,7 +205,13 @@ export default function SearchForm({ onSearch, loading }: Props) {
             </p>
           )}
 
-          {isCityOnlySource && (
+          {country !== 'de' && (
+            <p style={{ color: '#64748b', fontSize: '11px', marginTop: '6px', lineHeight: 1.4 }}>
+              OSM recommended for best international coverage. Pitches auto-generated in {CI[country].defaultLang === 'ar' ? 'Arabic' : 'English'}.
+            </p>
+          )}
+
+          {isCityOnlySource && country === 'de' && (
             <p style={{ color: '#64748b', fontSize: '11px', marginTop: '6px', lineHeight: 1.4 }}>
               This source only supports city-level searches.
             </p>
@@ -231,12 +266,12 @@ export default function SearchForm({ onSearch, loading }: Props) {
           {loading ? (
             <>
               <LoaderIcon size={18} />
-              {location === '__ALL__' ? 'Scanning Germany...' : 'Searching...'}
+              {location === '__ALL__' ? 'Scanning Germany...' : `Searching ${CI[country].name}...`}
             </>
           ) : (
             <>
               <SearchIcon size={18} />
-              {location === '__ALL__' ? 'Scan All of Germany' : 'Find Leads'}
+              {location === '__ALL__' ? 'Scan All of Germany' : `Find Leads in ${CI[country].name}`}
             </>
           )}
         </button>

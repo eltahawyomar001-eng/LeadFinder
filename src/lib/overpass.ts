@@ -99,7 +99,8 @@ export async function searchOverpass(
   lat: number,
   lng: number,
   radiusMeters: number,
-  stateName?: string   // if set, use state-area query instead of radius
+  stateName?: string,
+  pitchLang: 'de' | 'en' | 'ar' = 'de'
 ): Promise<Lead[]> {
   const tags: Array<[string, string]> = OSM_TAGS[categoryQuery]
     ?? categoryQuery.split(' ').slice(0, 1).map((word): [string, string] => ['name', word]);
@@ -160,7 +161,7 @@ export async function searchOverpass(
     const { score, reasons } = scoreWeakness(website, rating, totalRatings);
     const whatsapp_link = phone ? formatPhoneForWhatsApp(phone) : null;
     const whatsapp_message = generateWhatsAppMessage(name, reasons);
-    const emailPitch = generateEmailPitch(name, reasons);
+    const emailPitch = generateEmailPitch(name, reasons, pitchLang);
     // Email scraping happens after — placeholder null here, filled by route
     leads.push({
       place_id: `osm_${el.type}_${el.id}`,
