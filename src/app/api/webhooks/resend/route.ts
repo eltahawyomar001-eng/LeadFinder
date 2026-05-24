@@ -1,19 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Webhook } from 'svix';
 import { getSupabase } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
-  const secret = process.env.RESEND_WEBHOOK_SECRET;
-  if (secret && req.nextUrl.searchParams.get('secret') !== secret) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const signingSecret = process.env.RESEND_WEBHOOK_SECRET;
 
+  const rawBody = await req.text();
   let payload: Record<string, unknown>;
-  try {
-    payload = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+
+  if (signingSecret) {
+    const wh = new Webhook(signingSecret);
+    try {
+      payload = wh.verify(rawBody, {
+        'svix-id': req.headers.get('svix-id') ?? '',
+        'svix-timestamp': req.headers.get('svix-timestamp') ?? '',
+        'svix-signature': req.headers.get('svix-signature') ?? '',
+      }) as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    }
+  } else {
+    try {
+      payload = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    }
   }
 
   const type = payload.type as string | undefined;
