@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
   const toList = (data?.to ?? data?.email_id) as unknown;
   const toEmail: string | undefined = Array.isArray(toList) ? toList[0] : typeof toList === 'string' ? toList : undefined;
 
-  if (!toEmail || (type !== 'email.bounced' && type !== 'email.spam_complained')) {
+  if (!toEmail || (type !== 'email.bounced' && type !== 'email.complained')) {
     return NextResponse.json({ ok: true, skipped: true });
   }
 
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
   const newStatus = type === 'email.bounced' ? 'bounced' : 'unsubscribed';
   const note = type === 'email.bounced'
     ? `Email bounced — sequence stopped automatically.`
-    : `Spam complaint received — unsubscribed automatically.`;
+    : `Complaint received — unsubscribed automatically.`;
 
   // Cancel all pending sequences for this lead
   await supabase
