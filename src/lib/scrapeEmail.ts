@@ -11,6 +11,7 @@ export interface WebsiteAnalysis {
   language: PitchLang | 'unknown';
   pageTitle: string | null;
   metaDescription: string | null;
+  copyrightYear: number | null;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -390,6 +391,20 @@ function detectLanguage(html: string): PitchLang | 'unknown' {
   return 'unknown';
 }
 
+// Find the most-recent copyright year from footer text (©, (c), or "Copyright")
+function extractCopyrightYear(html: string): number | null {
+  const text = html.replace(/<[^>]+>/g, ' ');
+  const matches: number[] = [];
+  const re = /(?:©|&copy;|\(c\)|copyright)\s*(\d{4})(?:\s*[-–]\s*(\d{4}))?/gi;
+  for (const m of text.matchAll(re)) {
+    const y1 = parseInt(m[1], 10);
+    const y2 = m[2] ? parseInt(m[2], 10) : y1;
+    if (y1 >= 1990 && y1 <= 2030) matches.push(y2 >= 1990 && y2 <= 2030 ? y2 : y1);
+  }
+  if (matches.length === 0) return null;
+  return Math.max(...matches);
+}
+
 function extractMeta(html: string): { title: string | null; description: string | null } {
   const titleMatch = html.match(/<title[^>]*>([^<]{1,120})<\/title>/i);
   const descMatch =
@@ -407,7 +422,7 @@ export async function analyzeWebsite(url: string): Promise<WebsiteAnalysis> {
   const empty: WebsiteAnalysis = {
     email: null, phone: null, builder: null, isModern: false,
     hasViewport: false, isHttps: url.startsWith('https://'),
-    language: 'unknown', pageTitle: null, metaDescription: null,
+    language: 'unknown', pageTitle: null, metaDescription: null, copyrightYear: null,
   };
 
   try {
@@ -427,6 +442,7 @@ export async function analyzeWebsite(url: string): Promise<WebsiteAnalysis> {
     const hasViewport = mainHtml.toLowerCase().includes('name="viewport"');
     const language = detectLanguage(mainHtml);
     const { title: pageTitle, description: metaDescription } = extractMeta(mainHtml);
+    const copyrightYear = extractCopyrightYear(mainHtml);
 
     // Extract from main page immediately
     let allEmails = extractEmailsFromHtml(mainHtml);
@@ -440,7 +456,7 @@ export async function analyzeWebsite(url: string): Promise<WebsiteAnalysis> {
         phone: allPhones[0] ?? null,
         builder, isModern, hasViewport,
         isHttps: url.startsWith('https://'),
-        language, pageTitle, metaDescription,
+        language, pageTitle, metaDescription, copyrightYear,
       };
     }
 
@@ -485,7 +501,7 @@ export async function analyzeWebsite(url: string): Promise<WebsiteAnalysis> {
         phone: allPhones[0] ?? null,
         builder, isModern, hasViewport,
         isHttps: url.startsWith('https://'),
-        language, pageTitle, metaDescription,
+        language, pageTitle, metaDescription, copyrightYear,
       };
     }
 
@@ -529,7 +545,7 @@ export async function analyzeWebsite(url: string): Promise<WebsiteAnalysis> {
       phone: rankedPhones[0] ?? null,
       builder, isModern, hasViewport,
       isHttps: url.startsWith('https://'),
-      language, pageTitle, metaDescription,
+      language, pageTitle, metaDescription, copyrightYear,
     };
   } catch {
     return empty;

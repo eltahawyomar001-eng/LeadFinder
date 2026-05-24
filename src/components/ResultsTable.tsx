@@ -5,6 +5,158 @@ import type { Lead } from '@/types';
 import LeadCard from './LeadCard';
 import MessageModal from './MessageModal';
 
+// ─── Preview Drawer ───────────────────────────────────────────────────────────
+
+function PreviewDrawer({
+  lead,
+  onClose,
+  onSent,
+}: {
+  lead: Lead;
+  onClose: () => void;
+  onSent: (placeId: string) => void;
+}) {
+  const [subject, setSubject] = useState(lead.email_subject ?? '');
+  const [body, setBody] = useState(lead.email_body ?? '');
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const send = async () => {
+    setSending(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/crm/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead: { ...lead, email_subject: subject, email_body: body } }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error ?? 'Send failed');
+      }
+      onSent(lead.place_id);
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Send failed');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)',
+        backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+        zIndex: 200, display: 'flex', alignItems: 'stretch', justifyContent: 'flex-end',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          backgroundColor: '#040d1a', borderLeft: '1px solid #1e293b',
+          width: '100%', maxWidth: '540px', height: '100dvh',
+          overflowY: 'auto', display: 'flex', flexDirection: 'column',
+        }}
+      >
+        {/* Header */}
+        <div style={{
+          padding: '20px 24px', borderBottom: '1px solid #1e293b',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+          position: 'sticky', top: 0, backgroundColor: '#040d1a', zIndex: 10,
+        }}>
+          <div>
+            <p style={{ color: '#f1f5f9', fontSize: '15px', fontWeight: 800, marginBottom: '2px' }}>
+              Preview email
+            </p>
+            <p style={{ color: '#475569', fontSize: '12px' }}>
+              To: <span style={{ color: '#60a5fa', fontFamily: 'monospace' }}>{lead.email}</span>
+            </p>
+          </div>
+          <button onClick={onClose} style={{
+            background: '#0a1628', border: '1px solid #1e293b', color: '#475569',
+            borderRadius: '8px', padding: '8px', cursor: 'pointer', minHeight: 'unset',
+            display: 'flex', alignItems: 'center',
+          }}>
+            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: '20px 24px', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div>
+            <p style={{ color: '#475569', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>Subject</p>
+            <input
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              style={{
+                width: '100%', backgroundColor: '#0a1628', border: '1px solid #1e293b',
+                borderRadius: '8px', padding: '10px 12px', color: '#f1f5f9',
+                fontSize: '13px', boxSizing: 'border-box' as const,
+              }}
+            />
+          </div>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <p style={{ color: '#475569', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>Body</p>
+            <textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              style={{
+                flex: 1, minHeight: '320px', width: '100%',
+                backgroundColor: '#0a1628', border: '1px solid #1e293b',
+                borderRadius: '8px', padding: '10px 12px', color: '#e2e8f0',
+                fontSize: '13px', lineHeight: 1.65, resize: 'vertical',
+                boxSizing: 'border-box' as const,
+              }}
+            />
+          </div>
+          {error && (
+            <p style={{ color: '#f87171', fontSize: '12px', fontWeight: 600 }}>{error}</p>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          padding: '16px 24px', borderTop: '1px solid #1e293b',
+          display: 'flex', gap: '10px',
+          position: 'sticky', bottom: 0, backgroundColor: '#040d1a',
+        }}>
+          <button onClick={onClose} style={{
+            flex: 1, backgroundColor: 'transparent', border: '1px solid #1e293b',
+            color: '#475569', borderRadius: '8px', padding: '11px',
+            fontSize: '13px', fontWeight: 700, cursor: 'pointer', minHeight: 'unset',
+          }}>
+            Cancel
+          </button>
+          <button
+            onClick={send}
+            disabled={sending || !subject.trim() || !body.trim()}
+            style={{
+              flex: 2,
+              backgroundColor: sending ? '#0a1628' : '#1e3a5f',
+              border: `1px solid ${sending ? '#1e293b' : '#3b82f6'}`,
+              color: sending ? '#334155' : '#93c5fd',
+              borderRadius: '8px', padding: '11px',
+              fontSize: '13px', fontWeight: 700,
+              cursor: sending ? 'not-allowed' : 'pointer', minHeight: 'unset',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+            }}
+          >
+            {sending
+              ? <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+              : <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            }
+            {sending ? 'Sending…' : 'Confirm & Send'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface Props {
   leads: Lead[];
   onEmailFound?: (placeId: string, email: string) => void;
@@ -38,11 +190,8 @@ function ScoreBar({ score }: { score: number }) {
   );
 }
 
-// Inline send button
-function SendBtn({ lead, contacted, onContacted }: { lead: Lead; contacted?: boolean; onContacted?: (id: string) => void }) {
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState(false);
-
+// Inline send button — opens PreviewDrawer instead of sending directly
+function SendBtn({ lead, contacted, onPreview }: { lead: Lead; contacted?: boolean; onPreview: () => void }) {
   if (contacted) {
     return (
       <a href="/crm" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#4ade80', fontSize: '11px', fontWeight: 600, textDecoration: 'none' }}>
@@ -56,40 +205,21 @@ function SendBtn({ lead, contacted, onContacted }: { lead: Lead; contacted?: boo
 
   return (
     <button
-      onClick={async () => {
-        if (sending || !lead.email) return;
-        setSending(true);
-        setError(false);
-        try {
-          const res = await fetch('/api/crm/add', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lead }),
-          });
-          if (!res.ok) throw new Error();
-          if (onContacted) onContacted(lead.place_id);
-        } catch {
-          setError(true);
-        } finally {
-          setSending(false);
-        }
-      }}
-      disabled={sending}
-      title={error ? 'Send failed — retry' : 'Send & add to CRM'}
+      onClick={() => { if (lead.email) onPreview(); }}
+      title="Preview & send"
       style={{
-        backgroundColor: error ? 'rgba(127,29,29,0.3)' : 'rgba(21,128,61,0.15)',
-        border: `1px solid ${error ? '#7f1d1d' : '#166534'}`,
-        color: error ? '#f87171' : '#4ade80',
+        backgroundColor: 'rgba(21,128,61,0.15)',
+        border: '1px solid #166534',
+        color: '#4ade80',
         borderRadius: '6px', padding: '4px 8px', fontSize: '11px', fontWeight: 600,
-        cursor: sending ? 'not-allowed' : 'pointer',
+        cursor: 'pointer',
         display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', minHeight: 'unset',
       }}
     >
-      {sending
-        ? <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
-        : <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-      }
-      {error ? 'Retry' : sending ? '…' : 'Send'}
+      <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+      </svg>
+      Send
     </button>
   );
 }
@@ -151,6 +281,7 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
 
 export default function ResultsTable({ leads, onEmailFound, contactedIds, onContacted }: Props) {
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
+  const [previewLead, setPreviewLead] = useState<Lead | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('score');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
 
@@ -180,6 +311,7 @@ export default function ResultsTable({ leads, onEmailFound, contactedIds, onCont
             key={lead.place_id} lead={lead} index={i}
             onViewMessage={setActiveLead} onEmailFound={onEmailFound}
             contacted={contactedIds?.has(lead.place_id)} onContacted={onContacted}
+            onPreview={(l) => setPreviewLead(l)}
           />
         ))}
       </div>
@@ -310,7 +442,7 @@ export default function ResultsTable({ leads, onEmailFound, contactedIds, onCont
                         <span style={{ color: '#34d399', fontSize: '11px', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '130px', display: 'block' }}>
                           {lead.email}
                         </span>
-                        <SendBtn lead={lead} contacted={contacted} onContacted={onContacted} />
+                        <SendBtn lead={lead} contacted={contacted} onPreview={() => setPreviewLead(lead)} />
                       </div>
                     ) : lead.website ? (
                       <ScrapeBtn lead={lead} onEmailFound={onEmailFound} />
@@ -364,6 +496,15 @@ export default function ResultsTable({ leads, onEmailFound, contactedIds, onCont
       </div>
 
       {activeLead && <MessageModal lead={activeLead} onClose={() => setActiveLead(null)} />}
+      {previewLead && (
+        <PreviewDrawer
+          lead={previewLead}
+          onClose={() => setPreviewLead(null)}
+          onSent={(placeId) => {
+            if (onContacted) onContacted(placeId);
+          }}
+        />
+      )}
     </>
   );
 }

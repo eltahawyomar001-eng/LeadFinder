@@ -13,6 +13,7 @@ export interface PitchContext {
   calendlyUrl?: string | null;
   pageSpeedScore?: number;
   pageSpeedLoad?: string;
+  copyrightYear?: number | null;
   reasons: string[];
 }
 
@@ -96,6 +97,38 @@ function applyOpener(
   return {
     subject: opener.subjectOverride ?? result.subject,
     body: opener.bodyPrefix + result.body,
+  };
+}
+
+// ─── Copyright year opener — injects stale year into body prefix ─────────────
+
+const CURRENT_YEAR = new Date().getFullYear();
+
+function copyrightYearOpener(ctx: PitchContext): { subjectOverride?: string; bodyPrefix: string } {
+  const { copyrightYear, name, lang } = ctx;
+  if (!copyrightYear || copyrightYear >= CURRENT_YEAR - 1) return { bodyPrefix: '' };
+
+  const yearsAgo = CURRENT_YEAR - copyrightYear;
+  if (lang === 'de') {
+    return {
+      bodyPrefix:
+        `Im Footer Ihrer Website steht noch das Copyright-Jahr ${copyrightYear} — ` +
+        `das sind ${yearsAgo} Jahre. Für Besucher und Google ist das ein Signal, ` +
+        `dass die Seite seit Jahren nicht aktualisiert wurde.\n\n`,
+    };
+  }
+  if (lang === 'ar') {
+    return {
+      bodyPrefix:
+        `يظهر في أسفل موقعكم تاريخ حقوق النشر ${copyrightYear} — ` +
+        `أي منذ ${yearsAgo} سنوات. هذا يُرسل إشارة للزوار ولجوجل بأن الموقع لم يُحدَّث منذ سنوات.\n\n`,
+    };
+  }
+  return {
+    bodyPrefix:
+      `Your website footer still shows a copyright year of ${copyrightYear} — ` +
+      `that's ${yearsAgo} year${yearsAgo !== 1 ? 's' : ''} ago. ` +
+      `For visitors and Google, it signals the site hasn't been touched since.\n\n`,
   };
 }
 
@@ -625,12 +658,18 @@ export function generateEmailPitch(
     ...extra,
     calendlyUrl: undefined, // Calendly only in step 3
   };
-  const opener = pageSpeedOpener(ctx);
+  const speedOpener = pageSpeedOpener(ctx);
+  const yearOpener = copyrightYearOpener(ctx);
+  // PageSpeed subject override wins; combine body prefixes
+  const combinedOpener = {
+    subjectOverride: speedOpener.subjectOverride,
+    bodyPrefix: speedOpener.bodyPrefix + yearOpener.bodyPrefix,
+  };
   let result: { subject: string; body: string };
   if (lang === 'ar') result = pitchAR(ctx);
   else if (lang === 'en') result = pitchEN(ctx);
   else result = pitchDE(ctx);
-  return applyOpener(result, opener);
+  return applyOpener(result, combinedOpener);
 }
 
 export function generateFollowUpPitch(

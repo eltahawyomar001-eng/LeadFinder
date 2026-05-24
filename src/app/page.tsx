@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { Lead, SearchResponse, Source, Country } from '@/types';
 import { COUNTRY_INFO } from '@/types';
 import { GERMAN_STATES } from '@/lib/states';
@@ -10,6 +10,63 @@ import StatsBar from '@/components/StatsBar';
 import ResultsTable from '@/components/ResultsTable';
 import ExportButton from '@/components/ExportButton';
 import { LoaderIcon } from '@/components/icons';
+
+// ─── Deliverability Banner ────────────────────────────────────────────────────
+
+interface DelivCheck { pass: boolean; record: string | null }
+interface DelivResult { domain: string; spf: DelivCheck; dkim: DelivCheck; dmarc: DelivCheck; allPass: boolean }
+
+function DeliverabilityBanner() {
+  const [data, setData] = useState<DelivResult | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    if (sessionStorage.getItem('deliv_dismissed')) { setDismissed(true); return; }
+    fetch('/api/deliverability').then((r) => r.json()).then(setData).catch(() => {});
+  }, []);
+
+  if (dismissed || !data || data.allPass) return null;
+
+  const issues = [
+    !data.spf.pass  && 'SPF record missing',
+    !data.dkim.pass && 'DKIM not configured (Resend selector)',
+    !data.dmarc.pass && 'DMARC policy missing',
+  ].filter(Boolean) as string[];
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'flex-start', gap: '12px',
+      backgroundColor: 'rgba(120,53,15,0.25)', border: '1px solid #92400e',
+      borderRadius: '12px', padding: '14px 16px', marginBottom: '16px',
+    }}>
+      <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: '2px' }}>
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      <div style={{ flex: 1 }}>
+        <p style={{ color: '#fbbf24', fontSize: '13px', fontWeight: 700, marginBottom: '4px' }}>
+          Deliverability warning — {data.domain}
+        </p>
+        <ul style={{ margin: 0, padding: '0 0 0 16px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          {issues.map((i) => (
+            <li key={i} style={{ color: '#fcd34d', fontSize: '12px' }}>{i}</li>
+          ))}
+        </ul>
+        <p style={{ color: '#92400e', fontSize: '11px', marginTop: '6px' }}>
+          Fix DNS records in Namecheap / Resend dashboard before sending cold emails.
+        </p>
+      </div>
+      <button
+        onClick={() => { sessionStorage.setItem('deliv_dismissed', '1'); setDismissed(true); }}
+        style={{ background: 'none', border: 'none', color: '#92400e', cursor: 'pointer', padding: '2px', minHeight: 'unset', flexShrink: 0 }}
+      >
+        <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+  );
+}
 
 interface ScanProgress {
   current: number;
@@ -222,6 +279,28 @@ export default function HomePage() {
     setContactedIds((prev) => new Set([...prev, placeId]));
   };
 
+  // Auto-mark leads already in CRM whenever results change
+  useEffect(() => {
+    if (!result?.leads?.length) return;
+    const placeIds = result.leads.map((l) => l.place_id).filter(Boolean);
+    fetch('/api/leads/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ placeIds }),
+    })
+      .then((r) => r.json())
+      .then(({ existing }: { existing: string[] }) => {
+        if (existing?.length) {
+          setContactedIds((prev) => {
+            const next = new Set(prev);
+            existing.forEach((id) => next.add(id));
+            return next;
+          });
+        }
+      })
+      .catch(() => {});
+  }, [result]);
+
   // Patch a lead's email when scraped on-demand from LeadCard
   const handleEmailFound = (placeId: string, email: string) => {
     setResult((prev) => {
@@ -277,6 +356,8 @@ export default function HomePage() {
             Discover businesses with weak online presence in any country. Scrapes emails, scores website quality, and generates personalized cold outreach in German, English, or Arabic — matched to the company&apos;s own language.
           </p>
         </div>
+
+        <DeliverabilityBanner />
 
         {/* Search */}
         <div style={{ marginBottom: '24px' }}>

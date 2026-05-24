@@ -106,6 +106,14 @@ function followUpLabel(seq: SequenceRow): { label: string; urgent: boolean; futu
   return { label, urgent, future };
 }
 
+// Deterministic pitch variant — mirrors pick(name, 3) in whatsapp.ts
+function pitchVariant(name: string): 'A' | 'B' | 'C' {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (Math.imul(31, h) + name.charCodeAt(i)) | 0;
+  const idx = Math.abs(h) % 3;
+  return ['A', 'B', 'C'][idx] as 'A' | 'B' | 'C';
+}
+
 function scoreColor(score: number): string {
   if (score >= 7) return '#ef4444';
   if (score >= 4) return '#f97316';
@@ -284,7 +292,7 @@ function DetailDrawer({
   onSaveValue: (eur: number | null) => Promise<void>;
 }) {
   const lead = card.lf_leads;
-  const [activeTab, setActiveTab] = useState<'info' | 'emails' | 'send'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'emails' | 'send' | 'proposal'>('info');
   const [msgSubject, setMsgSubject] = useState('');
   const [msgBody, setMsgBody] = useState('');
   const [sending, setSending] = useState(false);
@@ -343,6 +351,13 @@ function DetailDrawer({
                 }}>
                   <ColumnIcon status={col.key} size={10} /> {col.label}
                 </span>
+                <span style={{
+                  backgroundColor: '#0a1628', border: '1px solid #1e293b',
+                  color: '#475569', borderRadius: '999px', padding: '3px 10px',
+                  fontSize: '11px', fontWeight: 700,
+                }}>
+                  Variant {pitchVariant(lead.name)}
+                </span>
                 {lead.email && (
                   <span style={{ color: '#60a5fa', fontSize: '12px', fontFamily: 'monospace' }}>
                     {lead.email}
@@ -387,7 +402,8 @@ function DetailDrawer({
             {([
               { key: 'info', label: 'Details' },
               { key: 'emails', label: 'Sequence' },
-              { key: 'send', label: 'Send Message' },
+              { key: 'send', label: 'Message' },
+              { key: 'proposal', label: 'Proposal' },
             ] as const).map((tab) => (
               <button
                 key={tab.key}
@@ -662,7 +678,156 @@ function DetailDrawer({
               </button>
             </div>
           )}
+
+          {activeTab === 'proposal' && (
+            <ProposalBuilder lead={lead} valueEur={card.value_eur} />
+          )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Proposal Builder ─────────────────────────────────────────────────────────
+
+function ProposalBuilder({ lead, valueEur }: { lead: LeadRow; valueEur: number | null }) {
+  const [price, setPrice] = useState(valueEur?.toString() ?? '2500');
+  const [copied, setCopied] = useState(false);
+
+  const issues = lead.weakness_reasons ?? [];
+  const hasWebsite = !!lead.website;
+
+  const lines: string[] = [];
+  lines.push(`PROPOSAL — ${lead.name}`);
+  lines.push(`Prepared by: Omar Rageh · omar@omarrageh.de · +49 176 55093674`);
+  lines.push(`Date: ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`);
+  lines.push('');
+  lines.push('─────────────────────────────────────────────');
+  lines.push('SCOPE OF WORK');
+  lines.push('─────────────────────────────────────────────');
+
+  if (!hasWebsite) {
+    lines.push('• New website — full design & development (Next.js)');
+    lines.push('• Mobile-first, responsive layout');
+    lines.push('• Basic SEO setup (meta tags, sitemap, robots.txt)');
+    lines.push('• Contact form with email notifications');
+    lines.push('• Hosting setup & domain configuration');
+    lines.push('• 1 round of revisions');
+  } else {
+    lines.push('• Website redesign / rebuild (Next.js)');
+    if (issues.some((r) => r.toLowerCase().includes('mobil') || r.toLowerCase().includes('viewport') || r.toLowerCase().includes('mobile'))) {
+      lines.push('• Mobile optimization — fully responsive on all devices');
+    }
+    if (issues.some((r) => r.toLowerCase().includes('wix') || r.toLowerCase().includes('wordpress') || r.toLowerCase().includes('baukasten') || r.toLowerCase().includes('builder'))) {
+      lines.push('• Migration away from page builder (Wix/WordPress/IONOS) to custom code');
+    }
+    if (issues.some((r) => r.toLowerCase().includes('https') || r.toLowerCase().includes('ssl'))) {
+      lines.push('• SSL certificate installation & HTTPS redirect');
+    }
+    lines.push('• Performance optimization (Core Web Vitals)');
+    lines.push('• SEO improvements — meta tags, structured data, sitemap');
+    lines.push('• 1 round of revisions');
+  }
+
+  lines.push('');
+  if (issues.length > 0) {
+    lines.push('─────────────────────────────────────────────');
+    lines.push('WHY THIS MATTERS (IDENTIFIED ISSUES)');
+    lines.push('─────────────────────────────────────────────');
+    issues.forEach((r) => lines.push(`• ${r}`));
+    lines.push('');
+  }
+
+  lines.push('─────────────────────────────────────────────');
+  lines.push('INVESTMENT');
+  lines.push('─────────────────────────────────────────────');
+  lines.push(`One-off fixed price: €${parseInt(price || '0').toLocaleString()}`);
+  lines.push('No monthly fees. No hidden costs.');
+  lines.push('50% upfront · 50% on delivery.');
+  lines.push('');
+  lines.push('─────────────────────────────────────────────');
+  lines.push('TIMELINE');
+  lines.push('─────────────────────────────────────────────');
+  lines.push('Estimated delivery: 5–7 business days from deposit.');
+  lines.push('');
+  lines.push('─────────────────────────────────────────────');
+  lines.push('NEXT STEP');
+  lines.push('─────────────────────────────────────────────');
+  lines.push('Reply to this proposal or book a 15-min call:');
+  if (process.env.NEXT_PUBLIC_CALENDLY_URL) {
+    lines.push(process.env.NEXT_PUBLIC_CALENDLY_URL);
+  }
+  lines.push('');
+  lines.push('Omar Rageh · Full-Stack Developer · Fulda, Germany');
+  lines.push('omar@omarrageh.de · +49 176 55093674 · omar-portfolio.xyz');
+
+  const text = lines.join('\n');
+
+  const copy = () => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div>
+        <p style={{ color: '#475569', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>Project Price (EUR)</p>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ flex: 1, position: 'relative' }}>
+            <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#475569', fontSize: '14px', fontWeight: 600 }}>€</span>
+            <input
+              type="number"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              style={{
+                width: '100%', backgroundColor: '#0a1628', border: '1px solid #1e293b',
+                borderRadius: '8px', padding: '10px 12px 10px 26px',
+                color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' as const,
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+          <p style={{ color: '#475569', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Proposal Text</p>
+          <button
+            onClick={copy}
+            style={{
+              backgroundColor: copied ? '#052e16' : '#0a1628',
+              border: `1px solid ${copied ? '#166534' : '#1e293b'}`,
+              color: copied ? '#4ade80' : '#475569',
+              borderRadius: '6px', padding: '4px 10px', fontSize: '11px', fontWeight: 700,
+              cursor: 'pointer', minHeight: 'unset',
+              display: 'flex', alignItems: 'center', gap: '4px',
+              transition: 'all 0.15s',
+            }}
+          >
+            {copied ? (
+              <>
+                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Copied
+              </>
+            ) : (
+              <>
+                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                </svg>
+                Copy
+              </>
+            )}
+          </button>
+        </div>
+        <pre style={{
+          backgroundColor: '#050d1a', border: '1px solid #0f172a', borderRadius: '10px',
+          padding: '14px', color: '#64748b', fontSize: '11px', lineHeight: 1.7,
+          whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0,
+          maxHeight: '420px', overflowY: 'auto', fontFamily: 'monospace',
+        }}>
+          {text}
+        </pre>
       </div>
     </div>
   );
@@ -1255,7 +1420,7 @@ export default function CrmPage() {
                             </div>
                           ) : null}
 
-                          {/* Value + notes + open indicator */}
+                          {/* Value + notes + open indicator + variant */}
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                               {card.value_eur && (
@@ -1275,6 +1440,16 @@ export default function CrmPage() {
                                   </svg>
                                 </span>
                               )}
+                              <span
+                                title={`Pitch variant ${pitchVariant(lead.name)}`}
+                                style={{
+                                  backgroundColor: '#0a1628', border: '1px solid #1e293b',
+                                  color: '#334155', borderRadius: '4px',
+                                  padding: '0px 4px', fontSize: '9px', fontWeight: 800, fontFamily: 'monospace',
+                                }}
+                              >
+                                V{pitchVariant(lead.name)}
+                              </span>
                             </div>
                             <span style={{ color: '#1e293b', fontSize: '10px' }}>{timeAgo(card.created_at)}</span>
                           </div>

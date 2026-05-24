@@ -50,9 +50,10 @@ interface Props {
   onEmailFound?: (placeId: string, email: string) => void;
   contacted?: boolean;
   onContacted?: (placeId: string) => void;
+  onPreview?: (lead: Lead) => void;
 }
 
-export default function LeadCard({ lead, index, onViewMessage, onEmailFound, contacted, onContacted }: Props) {
+export default function LeadCard({ lead, index, onViewMessage, onEmailFound, contacted, onContacted, onPreview }: Props) {
   const priority = getPriority(lead.weakness_score);
   const ps = PRIORITY_STYLE[priority];
 
@@ -105,7 +106,11 @@ export default function LeadCard({ lead, index, onViewMessage, onEmailFound, con
   };
 
   const handleAddToCrm = async () => {
-    if (!lead.email || addingToCrm || inCrm) return;
+    if (!lead.email || addingToCrm || inCrm || contacted) return;
+    if (onPreview) {
+      onPreview(lead);
+      return;
+    }
     setAddingToCrm(true);
     setCrmError(null);
     try {
