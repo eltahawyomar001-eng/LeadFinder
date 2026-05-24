@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
 
 function LogoMark({ size = 32 }: { size?: number }) {
   return (
@@ -22,6 +23,15 @@ function LogoMark({ size = 32 }: { size?: number }) {
 }
 
 export default function Header() {
+  const [replyCount, setReplyCount] = useState(0);
+
+  useEffect(() => {
+    fetch('/api/crm/unread')
+      .then((r) => r.json())
+      .then(({ count }) => setReplyCount(count ?? 0))
+      .catch(() => {});
+  }, []);
+
   return (
     <header
       style={{
@@ -85,6 +95,16 @@ export default function Header() {
               <rect x="3" y="3" width="7" height="18" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
             </svg>
             Pipeline
+            {replyCount > 0 && (
+              <span style={{
+                backgroundColor: '#fbbf24', color: '#000',
+                borderRadius: '999px', padding: '0 5px',
+                fontSize: '10px', fontWeight: 800, lineHeight: '16px',
+                minWidth: '16px', textAlign: 'center',
+              }}>
+                {replyCount}
+              </span>
+            )}
           </Link>
 
           <a

@@ -280,7 +280,7 @@ function SequenceTimeline({ sequences, onSendNow }: {
 // ─── Detail Drawer ────────────────────────────────────────────────────────────
 
 function DetailDrawer({
-  card, onClose, onMove, onDelete, onUnsubscribe, onSendNow, onSaveNotes, onSaveValue,
+  card, onClose, onMove, onDelete, onUnsubscribe, onSendNow, onSaveNotes, onSaveValue, onRestart,
 }: {
   card: CrmCard;
   onClose: () => void;
@@ -290,6 +290,7 @@ function DetailDrawer({
   onSendNow: (seq: SequenceRow) => Promise<void>;
   onSaveNotes: (notes: string) => Promise<void>;
   onSaveValue: (eur: number | null) => Promise<void>;
+  onRestart: () => Promise<void>;
 }) {
   const lead = card.lf_leads;
   const [activeTab, setActiveTab] = useState<'info' | 'emails' | 'send' | 'proposal'>('info');
@@ -302,6 +303,7 @@ function DetailDrawer({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [unsub, setUnsub] = useState(false);
+  const [restarting, setRestarting] = useState(false);
   const col = COLUMNS.find((c) => c.key === card.status)!;
   const sentCount = (card.lf_sequences ?? []).filter((s) => s.status === 'sent').length;
   const pendingCount = (card.lf_sequences ?? []).filter((s) => s.status === 'pending').length;
@@ -585,22 +587,53 @@ function DetailDrawer({
             </div>
           )}
 
-          {activeTab === 'emails' && (
-            <div>
-              {(card.lf_sequences ?? []).filter((s) => s.step !== 99).length > 0
-                ? <SequenceTimeline sequences={card.lf_sequences.filter((s) => s.step !== 99)} onSendNow={onSendNow} />
-                : (
-                  <div style={{ textAlign: 'center', padding: '40px 0', color: '#334155' }}>
-                    <svg width={32} height={32} viewBox="0 0 24 24" fill="none" stroke="#1e293b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '8px' }}>
-                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                      <polyline points="22,6 12,13 2,6"/>
-                    </svg>
-                    <p style={{ fontSize: '13px' }}>No email sequence found</p>
+          {activeTab === 'emails' && (() => {
+            const seqs = (card.lf_sequences ?? []).filter((s) => s.step !== 99);
+            const allDoneSeq = seqs.length > 0 && seqs.every((s) => s.status !== 'pending');
+            const canRestart = allDoneSeq && card.status !== 'replied';
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {seqs.length > 0
+                  ? <SequenceTimeline sequences={seqs} onSendNow={onSendNow} />
+                  : (
+                    <div style={{ textAlign: 'center', padding: '40px 0', color: '#334155' }}>
+                      <svg width={32} height={32} viewBox="0 0 24 24" fill="none" stroke="#1e293b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '8px' }}>
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                        <polyline points="22,6 12,13 2,6"/>
+                      </svg>
+                      <p style={{ fontSize: '13px' }}>No email sequence found</p>
+                    </div>
+                  )
+                }
+                {canRestart && (
+                  <div style={{ borderTop: '1px solid #1e293b', paddingTop: '16px' }}>
+                    <p style={{ color: '#334155', fontSize: '11px', marginBottom: '10px' }}>
+                      Sequence complete. Restart to send a fresh 3-step campaign.
+                    </p>
+                    <button
+                      onClick={async () => { setRestarting(true); await onRestart(); setRestarting(false); }}
+                      disabled={restarting}
+                      style={{
+                        width: '100%', backgroundColor: restarting ? '#0a1628' : '#1e3a5f',
+                        border: `1px solid ${restarting ? '#1e293b' : '#3b82f6'}`,
+                        color: restarting ? '#334155' : '#93c5fd',
+                        borderRadius: '8px', padding: '11px', fontSize: '13px', fontWeight: 700,
+                        cursor: restarting ? 'not-allowed' : 'pointer', minHeight: 'unset',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                        <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                      </svg>
+                      {restarting ? 'Restarting…' : 'Restart Sequence'}
+                    </button>
                   </div>
-                )
-              }
-            </div>
-          )}
+                )}
+              </div>
+            );
+          })()}
 
           {activeTab === 'send' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -903,6 +936,12 @@ function ListRow({ card, onSelect }: { card: CrmCard; onSelect: () => void }) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+interface CampaignStats {
+  sent: number; opened: number; replied: number;
+  openRate: number; replyRate: number;
+  byStep: { step: number; sent: number; opened: number; replied: number; openRate: number; replyRate: number }[];
+}
+
 export default function CrmPage() {
   const [cards, setCards] = useState<CrmCard[]>([]);
   const [warmup, setWarmup] = useState<WarmupStatus | null>(null);
@@ -911,8 +950,9 @@ export default function CrmPage() {
   const [dragOverCol, setDragOverCol] = useState<CardStatus | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
+  const [viewMode, setViewMode] = useState<'kanban' | 'list' | 'stats'>('kanban');
   const [filterStatus, setFilterStatus] = useState<CardStatus | 'all'>('all');
+  const [campaignStats, setCampaignStats] = useState<CampaignStats | null>(null);
 
   const load = useCallback(async () => {
     const [cardsRes, warmupRes] = await Promise.all([
@@ -924,6 +964,12 @@ export default function CrmPage() {
     setCards(c ?? []);
     setWarmup(w);
     setLoading(false);
+  }, []);
+
+  const loadStats = useCallback(async () => {
+    const res = await fetch('/api/crm/stats');
+    const data = await res.json();
+    setCampaignStats(data);
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -970,6 +1016,12 @@ export default function CrmPage() {
     const res = await fetch('/api/sequences/send-now', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sequenceId: seq.id }) });
     if (res.ok) await load();
     else { const d = await res.json(); alert(d.error ?? 'Send failed'); }
+  };
+
+  const restartSequence = async (cardId: string) => {
+    const res = await fetch('/api/crm/restart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cardId }) });
+    if (res.ok) await load();
+    else { const d = await res.json(); alert(d.error ?? 'Restart failed'); }
   };
 
   // ── Drag-and-drop ─────────────────────────────────────────────────────────
@@ -1061,29 +1113,24 @@ export default function CrmPage() {
 
           {/* View toggle */}
           <div style={{ display: 'flex', backgroundColor: '#0a1628', border: '1px solid #1e293b', borderRadius: '8px', overflow: 'hidden' }}>
-            {(['kanban', 'list'] as const).map((v) => (
+            {([
+              { key: 'kanban', title: 'Kanban view', icon: <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="5" height="18" rx="1"/><rect x="11" y="3" width="5" height="14" rx="1"/><rect x="19" y="3" width="2" height="10" rx="1"/></svg> },
+              { key: 'list',   title: 'List view',   icon: <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> },
+              { key: 'stats',  title: 'Campaign stats', icon: <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> },
+            ] as const).map((v, i, arr) => (
               <button
-                key={v}
-                onClick={() => setViewMode(v)}
-                title={v === 'kanban' ? 'Kanban view' : 'List view'}
+                key={v.key}
+                onClick={() => { setViewMode(v.key); if (v.key === 'stats') loadStats(); }}
+                title={v.title}
                 style={{
                   padding: '7px 10px', cursor: 'pointer', minHeight: 'unset',
-                  background: viewMode === v ? '#1e3a5f' : 'none',
-                  border: 'none', color: viewMode === v ? '#93c5fd' : '#475569',
+                  background: viewMode === v.key ? '#1e3a5f' : 'none',
+                  border: 'none', color: viewMode === v.key ? '#93c5fd' : '#475569',
                   display: 'flex', alignItems: 'center',
-                  borderRight: v === 'kanban' ? '1px solid #1e293b' : 'none',
+                  borderRight: i < arr.length - 1 ? '1px solid #1e293b' : 'none',
                 }}
               >
-                {v === 'kanban' ? (
-                  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="5" height="18" rx="1"/><rect x="11" y="3" width="5" height="14" rx="1"/><rect x="19" y="3" width="2" height="10" rx="1"/>
-                  </svg>
-                ) : (
-                  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
-                    <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
-                  </svg>
-                )}
+                {v.icon}
               </button>
             ))}
           </div>
@@ -1473,6 +1520,103 @@ export default function CrmPage() {
             })}
           </div>
         )}
+
+        {/* ── Stats view ── */}
+        {viewMode === 'stats' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {!campaignStats ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '60px 0' }}>
+                <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}>
+                  <path d="M21 12a9 9 0 11-6.219-8.56"/>
+                </svg>
+              </div>
+            ) : (
+              <>
+                {/* Top-line metrics */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '10px' }}>
+                  {[
+                    { label: 'Emails Sent', value: String(campaignStats.sent), color: '#93c5fd', icon: <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> },
+                    { label: 'Open Rate', value: `${campaignStats.openRate}%`, color: campaignStats.openRate >= 30 ? '#4ade80' : campaignStats.openRate >= 15 ? '#fbbf24' : '#f87171', icon: <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> },
+                    { label: 'Reply Rate', value: `${campaignStats.replyRate}%`, color: campaignStats.replyRate >= 5 ? '#4ade80' : campaignStats.replyRate >= 2 ? '#fbbf24' : '#f87171', icon: <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> },
+                    { label: 'Opened', value: String(campaignStats.opened), color: '#4ade80', icon: <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> },
+                    { label: 'Replied', value: String(campaignStats.replied), color: '#a78bfa', icon: <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 00-4-4H4"/></svg> },
+                  ].map((s) => (
+                    <div key={s.label} style={{ backgroundColor: '#06101f', border: '1px solid #0f1f36', borderRadius: '12px', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '36px', height: '36px', backgroundColor: '#0a1628', border: '1px solid #1e293b', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{s.icon}</div>
+                      <div>
+                        <p style={{ color: '#334155', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>{s.label}</p>
+                        <p style={{ color: s.color, fontSize: '20px', fontWeight: 800, lineHeight: 1 }}>{s.value}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Per-step breakdown */}
+                {campaignStats.byStep.length > 0 && (
+                  <div style={{ backgroundColor: '#06101f', border: '1px solid #0f1f36', borderRadius: '14px', overflow: 'hidden' }}>
+                    <div style={{ padding: '14px 20px', borderBottom: '1px solid #0f1f36' }}>
+                      <p style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 800 }}>Performance by Step</p>
+                      <p style={{ color: '#334155', fontSize: '11px', marginTop: '2px' }}>Which email in the sequence gets the best response</p>
+                    </div>
+                    <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      {campaignStats.byStep.map((s) => (
+                        <div key={s.step}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                            <span style={{ color: '#94a3b8', fontSize: '13px', fontWeight: 700 }}>
+                              Step {s.step} — {s.sent} sent
+                            </span>
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                              <span style={{ color: '#60a5fa', fontSize: '12px', fontWeight: 700 }}>{s.openRate}% open</span>
+                              <span style={{ color: '#a78bfa', fontSize: '12px', fontWeight: 700 }}>{s.replyRate}% reply</span>
+                            </div>
+                          </div>
+                          {/* Open rate bar */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ color: '#334155', fontSize: '10px', width: '36px', flexShrink: 0 }}>Open</span>
+                              <div style={{ flex: 1, height: '6px', backgroundColor: '#0a1628', borderRadius: '999px', overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: `${s.openRate}%`, backgroundColor: '#3b82f6', borderRadius: '999px', transition: 'width 0.5s ease' }} />
+                              </div>
+                              <span style={{ color: '#60a5fa', fontSize: '11px', fontWeight: 700, width: '32px', textAlign: 'right' }}>{s.opened}</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ color: '#334155', fontSize: '10px', width: '36px', flexShrink: 0 }}>Reply</span>
+                              <div style={{ flex: 1, height: '6px', backgroundColor: '#0a1628', borderRadius: '999px', overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: `${s.replyRate}%`, backgroundColor: '#8b5cf6', borderRadius: '999px', transition: 'width 0.5s ease' }} />
+                              </div>
+                              <span style={{ color: '#a78bfa', fontSize: '11px', fontWeight: 700, width: '32px', textAlign: 'right' }}>{s.replied}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Benchmarks */}
+                <div style={{ backgroundColor: '#06101f', border: '1px solid #0f1f36', borderRadius: '14px', padding: '16px 20px' }}>
+                  <p style={{ color: '#475569', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px' }}>Cold Email Benchmarks</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                    {[
+                      { label: 'Open Rate', good: '≥ 30%', avg: '15–29%', bad: '< 15%' },
+                      { label: 'Reply Rate', good: '≥ 5%', avg: '2–4%', bad: '< 2%' },
+                      { label: 'Meeting Rate', good: '≥ 2%', avg: '0.5–1%', bad: '< 0.5%' },
+                    ].map((b) => (
+                      <div key={b.label} style={{ backgroundColor: '#0a1628', borderRadius: '10px', padding: '12px' }}>
+                        <p style={{ color: '#64748b', fontSize: '10px', fontWeight: 700, marginBottom: '6px' }}>{b.label}</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#4ade80', fontSize: '11px' }}>Good</span><span style={{ color: '#4ade80', fontSize: '11px', fontWeight: 700 }}>{b.good}</span></div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#fbbf24', fontSize: '11px' }}>Avg</span><span style={{ color: '#fbbf24', fontSize: '11px', fontWeight: 700 }}>{b.avg}</span></div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#f87171', fontSize: '11px' }}>Poor</span><span style={{ color: '#f87171', fontSize: '11px', fontWeight: 700 }}>{b.bad}</span></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Detail drawer ── */}
@@ -1486,6 +1630,7 @@ export default function CrmPage() {
           onSendNow={sendNow}
           onSaveNotes={(notes) => saveNotes(selectedCard.id, notes)}
           onSaveValue={(v) => saveValue(selectedCard.id, v)}
+          onRestart={() => restartSequence(selectedCard.id)}
         />
       )}
     </div>

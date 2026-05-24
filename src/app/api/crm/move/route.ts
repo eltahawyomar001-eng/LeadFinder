@@ -23,12 +23,22 @@ export async function PATCH(req: NextRequest) {
     if (notes !== undefined) update.notes = notes;
     if (valueEur !== undefined) update.value_eur = valueEur;
 
-    const { error } = await getSupabase()
-      .from('lf_crm_cards')
-      .update(update)
-      .eq('id', cardId);
-
+    const sb = getSupabase();
+    const { error } = await sb.from('lf_crm_cards').update(update).eq('id', cardId);
     if (error) throw new Error(error.message);
+
+    // Auto-pause pending sequences when stage advances beyond 'contacted'
+    const PAUSE_ON = new Set(['meeting', 'proposal', 'won', 'lost']);
+    if (status && PAUSE_ON.has(status)) {
+      const { data: card } = await sb
+        .from('lf_crm_cards').select('lead_id').eq('id', cardId).single();
+      if (card?.lead_id) {
+        await sb.from('lf_sequences')
+          .update({ status: 'skipped' })
+          .eq('lead_id', card.lead_id)
+          .eq('status', 'pending');
+      }
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {
