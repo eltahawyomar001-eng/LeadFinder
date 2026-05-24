@@ -127,9 +127,19 @@ async function guessEmailFromDomain(website: string): Promise<string | null> {
     if (!domain || domain.split('.').length < 2) return null;
     const hasMx = await hasMxRecords(domain);
     if (!hasMx) return null;
-    // Return the highest-priority prefix for this domain's language
+
+    // Pick best prefix based on domain language/TLD
     const isGerman = domain.endsWith('.de') || domain.endsWith('.at') || domain.endsWith('.ch');
-    const prefix = isGerman ? 'info' : GUESS_PREFIXES[0];
+    const isArabic = domain.endsWith('.ae') || domain.endsWith('.sa') || domain.endsWith('.eg') || domain.endsWith('.ma');
+    const prefix = isGerman ? 'info' : isArabic ? 'info' : 'info';
+
+    // If the domain looks like a personal name (e.g. max-mustermann.de), try first-name prefix
+    const namePart = domain.split('.')[0].replace(/-/g, '');
+    const mightBePersonal = /^[a-z]{3,12}$/.test(namePart) && !['shop','store','web','site','online','news','blog','media'].includes(namePart);
+    if (mightBePersonal && isGerman) {
+      return `${namePart}@${domain}`;
+    }
+
     return `${prefix}@${domain}`;
   } catch {
     return null;
@@ -436,7 +446,7 @@ export async function analyzeWebsite(url: string): Promise<WebsiteAnalysis> {
 
     // ── Step 2: build prioritised page list ───────────────────────────────────
 
-    // High-priority hardcoded pages (top 8 checked in parallel first)
+    // High-priority hardcoded pages (top 10 checked in parallel first)
     const topPriority = [
       `${origin}/impressum`,
       `${origin}/kontakt`,
@@ -446,6 +456,8 @@ export async function analyzeWebsite(url: string): Promise<WebsiteAnalysis> {
       `${origin}/en/contact`,
       `${origin}/de/kontakt`,
       `${origin}/de/impressum`,
+      `${origin}/.well-known/security.txt`, // security contacts, often has real email
+      `${origin}/humans.txt`,               // some businesses list team emails here
     ];
 
     // Discovered links from main page

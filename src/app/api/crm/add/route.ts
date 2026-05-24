@@ -5,6 +5,7 @@ import { checkWarmup, logSend } from '@/lib/warmup';
 import { generateEmailPitch, generateFollowUpPitch } from '@/lib/whatsapp';
 import { detectBodyLang, unsubscribeFooter } from '@/lib/emailFooter';
 import { getPageSpeed } from '@/lib/pagespeed';
+import { textToHtml } from '@/lib/emailHtml';
 import type { Lead } from '@/types';
 import type { PitchLang, Country } from '@/types';
 
@@ -106,12 +107,14 @@ export async function POST(req: NextRequest) {
     const unsub = unsubscribeFooter(leadId, lang as 'de' | 'en' | 'ar', baseUrl);
     const step1Body = step1BodyRaw + unsub;
 
+    const step1TrackingUrl = `${baseUrl}/api/track/open/${leadId}/1`;
     const resend = new Resend(resendKey);
     const { error: sendErr } = await resend.emails.send({
       from: `${fromName} <${fromEmail}>`,
       replyTo: fromEmail,
       to: lead.email,
       subject: step1Subject,
+      html: textToHtml(step1Body, step1TrackingUrl),
       text: step1Body,
     });
     if (sendErr) throw new Error(sendErr.message);

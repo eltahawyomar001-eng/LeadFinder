@@ -29,7 +29,7 @@ export async function GET() {
 
     const { data: sequences, error: seqErr } = await supabase
       .from('lf_sequences')
-      .select('id, step, status, scheduled_for, sent_at, subject, body, lead_id')
+      .select('id, step, status, scheduled_for, sent_at, opened_at, subject, body, lead_id')
       .in('lead_id', leadIds);
 
     if (seqErr) throw new Error(seqErr.message);

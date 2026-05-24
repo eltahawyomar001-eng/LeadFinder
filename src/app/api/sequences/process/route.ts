@@ -4,6 +4,7 @@ import { getSupabase } from '@/lib/supabase';
 import { checkWarmup, logSend } from '@/lib/warmup';
 import { detectBodyLang, unsubscribeFooter } from '@/lib/emailFooter';
 import { fetchRepliedEmails } from '@/lib/imap';
+import { textToHtml } from '@/lib/emailHtml';
 
 export const maxDuration = 60;
 
@@ -83,12 +84,14 @@ export async function POST() {
       try {
         const lang = detectBodyLang(seq.body);
         const bodyWithUnsub = seq.body + unsubscribeFooter(lead.id, lang, baseUrl);
+        const trackingUrl = `${baseUrl}/api/track/open/${lead.id}/${seq.step}`;
 
         const { error: sendErr } = await resend.emails.send({
           from: `${fromName} <${fromEmail}>`,
           replyTo: fromEmail,
           to: lead.email,
           subject: seq.subject,
+          html: textToHtml(bodyWithUnsub, trackingUrl),
           text: bodyWithUnsub,
         });
 

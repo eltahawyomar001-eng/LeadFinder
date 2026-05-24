@@ -11,6 +11,7 @@ interface SequenceRow {
   status: string;
   scheduled_for: string;
   sent_at: string | null;
+  opened_at: string | null;
   subject: string;
   body: string;
 }
@@ -218,9 +219,24 @@ function SequenceTimeline({ sequences, onSendNow }: {
                   </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ color: '#334155', fontSize: '10px' }}>
-                    {seq.sent_at ? `Sent ${formatDate(seq.sent_at)}` : isPending ? `Due ${formatDate(seq.scheduled_for)}` : ''}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ color: '#334155', fontSize: '10px' }}>
+                      {seq.sent_at ? `Sent ${formatDate(seq.sent_at)}` : isPending ? `Due ${formatDate(seq.scheduled_for)}` : ''}
+                    </span>
+                    {seq.opened_at && (
+                      <span style={{
+                        backgroundColor: '#052e16', border: '1px solid #166534',
+                        color: '#4ade80', borderRadius: '999px',
+                        padding: '1px 7px', fontSize: '10px', fontWeight: 700,
+                        display: 'inline-flex', alignItems: 'center', gap: '3px',
+                      }}>
+                        <svg width={8} height={8} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                        </svg>
+                        Opened
+                      </span>
+                    )}
+                  </div>
                   {isPending && (
                     <button
                       onClick={async () => { setSendingId(seq.id); await onSendNow(seq); setSendingId(null); }}
@@ -268,7 +284,11 @@ function DetailDrawer({
   onSaveValue: (eur: number | null) => Promise<void>;
 }) {
   const lead = card.lf_leads;
-  const [activeTab, setActiveTab] = useState<'info' | 'emails'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'emails' | 'send'>('info');
+  const [msgSubject, setMsgSubject] = useState('');
+  const [msgBody, setMsgBody] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<'ok' | 'error' | null>(null);
   const [notes, setNotes] = useState(card.notes ?? '');
   const [valueInput, setValueInput] = useState(card.value_eur?.toString() ?? '');
   const [saving, setSaving] = useState(false);
@@ -277,6 +297,7 @@ function DetailDrawer({
   const col = COLUMNS.find((c) => c.key === card.status)!;
   const sentCount = (card.lf_sequences ?? []).filter((s) => s.status === 'sent').length;
   const pendingCount = (card.lf_sequences ?? []).filter((s) => s.status === 'pending').length;
+  const openCount = (card.lf_sequences ?? []).filter((s) => s.opened_at != null).length;
 
   return (
     <div
@@ -348,8 +369,8 @@ function DetailDrawer({
             {[
               { label: 'Score', value: `${lead.weakness_score}/10`, color: scoreColor(lead.weakness_score) },
               { label: 'Sent', value: `${sentCount} email${sentCount !== 1 ? 's' : ''}`, color: '#4ade80' },
+              { label: 'Opened', value: openCount > 0 ? `${openCount}×` : '—', color: openCount > 0 ? '#4ade80' : '#334155' },
               { label: 'Pending', value: `${pendingCount} step${pendingCount !== 1 ? 's' : ''}`, color: pendingCount > 0 ? '#fbbf24' : '#334155' },
-              { label: 'Added', value: timeAgo(card.created_at), color: '#475569' },
             ].map((s) => (
               <div key={s.label} style={{
                 flex: 1, backgroundColor: '#0a1628', padding: '8px 10px', textAlign: 'center',
@@ -363,20 +384,25 @@ function DetailDrawer({
 
           {/* Tabs */}
           <div style={{ display: 'flex', gap: '0' }}>
-            {(['info', 'emails'] as const).map((tab) => (
+            {([
+              { key: 'info', label: 'Details' },
+              { key: 'emails', label: 'Sequence' },
+              { key: 'send', label: 'Send Message' },
+            ] as const).map((tab) => (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
                 style={{
                   flex: 1, padding: '10px', fontSize: '12px', fontWeight: 700,
-                  textTransform: 'capitalize', cursor: 'pointer', minHeight: 'unset',
+                  cursor: 'pointer', minHeight: 'unset',
                   background: 'none', border: 'none',
-                  color: activeTab === tab ? col.color : '#475569',
-                  borderBottom: `2px solid ${activeTab === tab ? col.accent : 'transparent'}`,
+                  color: activeTab === tab.key ? col.color : '#475569',
+                  borderBottom: `2px solid ${activeTab === tab.key ? col.accent : 'transparent'}`,
                   transition: 'color 0.15s, border-color 0.15s',
+                  whiteSpace: 'nowrap',
                 }}
               >
-                {tab === 'info' ? 'Details' : 'Email Sequence'}
+                {tab.label}
               </button>
             ))}
           </div>
@@ -545,8 +571,8 @@ function DetailDrawer({
 
           {activeTab === 'emails' && (
             <div>
-              {(card.lf_sequences ?? []).length > 0
-                ? <SequenceTimeline sequences={card.lf_sequences} onSendNow={onSendNow} />
+              {(card.lf_sequences ?? []).filter((s) => s.step !== 99).length > 0
+                ? <SequenceTimeline sequences={card.lf_sequences.filter((s) => s.step !== 99)} onSendNow={onSendNow} />
                 : (
                   <div style={{ textAlign: 'center', padding: '40px 0', color: '#334155' }}>
                     <svg width={32} height={32} viewBox="0 0 24 24" fill="none" stroke="#1e293b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '8px' }}>
@@ -557,6 +583,83 @@ function DetailDrawer({
                   </div>
                 )
               }
+            </div>
+          )}
+
+          {activeTab === 'send' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <p style={{ color: '#475569', fontSize: '12px', lineHeight: 1.5 }}>
+                Send a one-off message to <span style={{ color: '#60a5fa', fontFamily: 'monospace' }}>{lead.email}</span>. It will be logged as a manual send and appended to notes.
+              </p>
+              <div>
+                <p style={{ color: '#475569', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>Subject</p>
+                <input
+                  type="text"
+                  value={msgSubject}
+                  onChange={(e) => setMsgSubject(e.target.value)}
+                  placeholder={`Re: ${lead.name}`}
+                  style={{
+                    width: '100%', backgroundColor: '#0a1628', border: '1px solid #1e293b',
+                    borderRadius: '8px', padding: '10px 12px', color: '#f1f5f9',
+                    fontSize: '13px', boxSizing: 'border-box' as const,
+                  }}
+                />
+              </div>
+              <div>
+                <p style={{ color: '#475569', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>Message</p>
+                <textarea
+                  value={msgBody}
+                  onChange={(e) => setMsgBody(e.target.value)}
+                  placeholder="Write your message…"
+                  rows={10}
+                  style={{
+                    width: '100%', backgroundColor: '#0a1628', border: '1px solid #1e293b',
+                    borderRadius: '8px', padding: '10px 12px', color: '#e2e8f0',
+                    fontSize: '13px', resize: 'vertical', lineHeight: 1.6,
+                    boxSizing: 'border-box' as const,
+                  }}
+                />
+              </div>
+              {sendResult === 'ok' && (
+                <p style={{ color: '#4ade80', fontSize: '12px', fontWeight: 700 }}>Sent successfully.</p>
+              )}
+              {sendResult === 'error' && (
+                <p style={{ color: '#f87171', fontSize: '12px', fontWeight: 700 }}>Send failed. Check quota or email address.</p>
+              )}
+              <button
+                disabled={sending || !msgSubject.trim() || !msgBody.trim()}
+                onClick={async () => {
+                  setSending(true);
+                  setSendResult(null);
+                  const res = await fetch('/api/crm/send-message', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cardId: card.id, subject: msgSubject, body: msgBody }),
+                  });
+                  setSending(false);
+                  if (res.ok) {
+                    setSendResult('ok');
+                    setMsgSubject('');
+                    setMsgBody('');
+                  } else {
+                    setSendResult('error');
+                  }
+                }}
+                style={{
+                  backgroundColor: sending || !msgSubject.trim() || !msgBody.trim() ? '#0a1628' : '#1e3a5f',
+                  border: `1px solid ${sending || !msgSubject.trim() || !msgBody.trim() ? '#1e293b' : '#3b82f6'}`,
+                  color: sending || !msgSubject.trim() || !msgBody.trim() ? '#334155' : '#93c5fd',
+                  borderRadius: '8px', padding: '11px', fontSize: '13px', fontWeight: 700,
+                  cursor: sending || !msgSubject.trim() || !msgBody.trim() ? 'not-allowed' : 'pointer',
+                  minHeight: 'unset', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                  transition: 'all 0.15s',
+                }}
+              >
+                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                </svg>
+                {sending ? 'Sending…' : 'Send Message'}
+              </button>
             </div>
           )}
         </div>
@@ -1152,11 +1255,18 @@ export default function CrmPage() {
                             </div>
                           ) : null}
 
-                          {/* Value + notes */}
+                          {/* Value + notes + open indicator */}
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                               {card.value_eur && (
                                 <span style={{ color: '#4ade80', fontSize: '11px', fontWeight: 700 }}>€{card.value_eur.toLocaleString()}</span>
+                              )}
+                              {(card.lf_sequences ?? []).some((s) => s.opened_at) && (
+                                <span title="Email opened" style={{ color: '#4ade80' }}>
+                                  <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                                  </svg>
+                                </span>
                               )}
                               {card.notes && (
                                 <span title={card.notes} style={{ color: '#334155' }}>

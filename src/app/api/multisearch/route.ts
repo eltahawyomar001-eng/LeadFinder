@@ -67,11 +67,21 @@ export async function POST(req: NextRequest) {
     const results = await Promise.allSettled(promises);
 
     // Flatten all successful results
-    const allLeads: Lead[] = [];
+    let allLeads: Lead[] = [];
     for (const result of results) {
       if (result.status === 'fulfilled') {
         allLeads.push(...result.value);
       }
+    }
+
+    // Adaptive radius: if Overpass returned very few results (<5), retry with 2× radius
+    // This helps sparse international markets where OSM coverage is lower
+    const overpassCount = results[0].status === 'fulfilled' ? results[0].value.length : 0;
+    if (overpassCount < 5 && radiusM < 20_000) {
+      try {
+        const wider = await searchOverpass(category, lat, lng, radiusM * 2, undefined, countryLang);
+        allLeads.push(...wider);
+      } catch { /* non-fatal */ }
     }
 
     // Deduplicate by normalized name — keep entry with most contact info
