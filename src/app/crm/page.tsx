@@ -1230,6 +1230,8 @@ export default function CrmPage() {
   const [campaignStats, setCampaignStats] = useState<CampaignStats | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showImport, setShowImport] = useState(false);
+  const [blacklist, setBlacklist] = useState<{ domain: string; results: { name: string; listed: boolean }[]; anyListed: boolean } | null>(null);
+  const [blacklistLoading, setBlacklistLoading] = useState(false);
 
   const load = useCallback(async () => {
     const [cardsRes, warmupRes] = await Promise.all([
@@ -1244,9 +1246,14 @@ export default function CrmPage() {
   }, []);
 
   const loadStats = useCallback(async () => {
-    const res = await fetch('/api/crm/stats');
-    const data = await res.json();
+    const [statsRes] = await Promise.all([fetch('/api/crm/stats')]);
+    const data = await statsRes.json();
     setCampaignStats(data);
+    setBlacklistLoading(true);
+    const blRes = await fetch('/api/blacklist/check');
+    const blData = await blRes.json();
+    setBlacklist(blData);
+    setBlacklistLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -1967,6 +1974,49 @@ export default function CrmPage() {
                       </div>
                     ))}
                   </div>
+                </div>
+                {/* Blacklist check */}
+                <div style={{ backgroundColor: '#06101f', border: `1px solid ${blacklist?.anyListed ? '#7f1d1d' : '#0f1f36'}`, borderRadius: '14px', padding: '16px 20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <p style={{ color: '#475569', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      Blacklist Status — omarrageh.de
+                    </p>
+                    {blacklistLoading && (
+                      <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}>
+                        <path d="M21 12a9 9 0 11-6.219-8.56"/>
+                      </svg>
+                    )}
+                    {blacklist && !blacklistLoading && (
+                      <span style={{
+                        backgroundColor: blacklist.anyListed ? '#450a0a' : '#052e16',
+                        border: `1px solid ${blacklist.anyListed ? '#7f1d1d' : '#166534'}`,
+                        color: blacklist.anyListed ? '#fca5a5' : '#4ade80',
+                        borderRadius: '999px', padding: '2px 10px', fontSize: '11px', fontWeight: 700,
+                      }}>
+                        {blacklist.anyListed ? 'LISTED' : 'Clean'}
+                      </span>
+                    )}
+                  </div>
+                  {blacklist && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {blacklist.results.map((r) => (
+                        <div key={r.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#64748b', fontSize: '12px' }}>{r.name}</span>
+                          <span style={{
+                            backgroundColor: r.listed ? '#450a0a' : '#052e16',
+                            border: `1px solid ${r.listed ? '#7f1d1d' : '#166534'}`,
+                            color: r.listed ? '#fca5a5' : '#4ade80',
+                            borderRadius: '999px', padding: '1px 8px', fontSize: '10px', fontWeight: 700,
+                          }}>
+                            {r.listed ? 'Listed' : 'Clean'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {!blacklist && !blacklistLoading && (
+                    <p style={{ color: '#334155', fontSize: '12px' }}>Check will run when stats load.</p>
+                  )}
                 </div>
               </>
             )}
