@@ -39,6 +39,6 @@ export async function GET() {
   const allPass = spf.pass && dkim.pass && dmarc.pass;
   return NextResponse.json(
     { domain: DOMAIN, spf, dkim, dmarc, allPass },
-    { headers: { 'Cache-Control': 'public, max-age=3600' } },
+    { headers: { 'Cache-Control': 'no-store' } },
   );
 }
