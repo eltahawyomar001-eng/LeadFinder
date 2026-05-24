@@ -868,7 +868,12 @@ function ProposalBuilder({ lead, valueEur }: { lead: LeadRow; valueEur: number |
 
 // ─── List View Row ────────────────────────────────────────────────────────────
 
-function ListRow({ card, onSelect }: { card: CrmCard; onSelect: () => void }) {
+function ListRow({ card, selected, onSelect, onToggle }: {
+  card: CrmCard;
+  selected: boolean;
+  onSelect: () => void;
+  onToggle: (e: React.MouseEvent) => void;
+}) {
   const lead = card.lf_leads;
   const col = COLUMNS.find((c) => c.key === card.status)!;
   const nextSeq = nextPendingSeq(card.lf_sequences ?? []);
@@ -877,10 +882,27 @@ function ListRow({ card, onSelect }: { card: CrmCard; onSelect: () => void }) {
   return (
     <tr
       onClick={onSelect}
-      style={{ borderBottom: '1px solid #0a1628', cursor: 'pointer', transition: 'background 0.1s' }}
-      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0a1628')}
-      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+      style={{ borderBottom: '1px solid #0a1628', cursor: 'pointer', transition: 'background 0.1s', backgroundColor: selected ? 'rgba(59,130,246,0.06)' : 'transparent' }}
+      onMouseEnter={(e) => { if (!selected) e.currentTarget.style.backgroundColor = '#0a1628'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = selected ? 'rgba(59,130,246,0.06)' : 'transparent'; }}
     >
+      <td style={{ padding: '12px 16px', width: '36px' }} onClick={(e) => e.stopPropagation()}>
+        <div
+          onClick={onToggle}
+          style={{
+            width: '16px', height: '16px', borderRadius: '4px', cursor: 'pointer', flexShrink: 0,
+            backgroundColor: selected ? '#3b82f6' : '#0a1628',
+            border: `1px solid ${selected ? '#3b82f6' : '#1e3a5f'}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          {selected && (
+            <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          )}
+        </div>
+      </td>
       <td style={{ padding: '12px 16px' }}>
         <p style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 700, lineHeight: 1.3, marginBottom: '2px' }}>{lead.name}</p>
         {lead.email && (
@@ -953,6 +975,7 @@ export default function CrmPage() {
   const [viewMode, setViewMode] = useState<'kanban' | 'list' | 'stats'>('kanban');
   const [filterStatus, setFilterStatus] = useState<CardStatus | 'all'>('all');
   const [campaignStats, setCampaignStats] = useState<CampaignStats | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     const [cardsRes, warmupRes] = await Promise.all([
@@ -1022,6 +1045,35 @@ export default function CrmPage() {
     const res = await fetch('/api/crm/restart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cardId }) });
     if (res.ok) await load();
     else { const d = await res.json(); alert(d.error ?? 'Restart failed'); }
+  };
+
+  const toggleSelect = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const bulkMove = async (status: CardStatus) => {
+    const ids = [...selectedIds];
+    setCards((prev) => prev.map((c) => ids.includes(c.id) ? { ...c, status } : c));
+    setSelectedIds(new Set());
+    await Promise.all(ids.map((id) =>
+      fetch('/api/crm/move', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cardId: id, status }) })
+    ));
+  };
+
+  const bulkDelete = async () => {
+    const ids = [...selectedIds];
+    if (!confirm(`Delete ${ids.length} lead${ids.length !== 1 ? 's' : ''}? This cannot be undone.`)) return;
+    setCards((prev) => prev.filter((c) => !ids.includes(c.id)));
+    setSelectedIds(new Set());
+    if (selectedCard && ids.includes(selectedCard.id)) setSelectedCard(null);
+    await Promise.all(ids.map((id) =>
+      fetch('/api/crm/delete', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cardId: id }) })
+    ));
   };
 
   // ── Drag-and-drop ─────────────────────────────────────────────────────────
@@ -1314,12 +1366,13 @@ export default function CrmPage() {
           <div style={{ backgroundColor: '#06101f', border: '1px solid #0f1f36', borderRadius: '14px', overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' as const }}>
               <colgroup>
-                <col style={{ width: '280px' }} /><col style={{ width: '140px' }} />
+                <col style={{ width: '36px' }} /><col style={{ width: '260px' }} /><col style={{ width: '140px' }} />
                 <col style={{ width: '120px' }} /><col style={{ width: '180px' }} />
                 <col style={{ width: '100px' }} /><col style={{ width: '100px' }} />
               </colgroup>
               <thead>
                 <tr style={{ backgroundColor: '#040d1a', borderBottom: '1px solid #0a1628' }}>
+                  <th style={{ padding: '10px 16px' }} />
                   {['Lead', 'Stage', 'Score', 'Follow-up', 'Value', 'Added'].map((h) => (
                     <th key={h} style={{
                       textAlign: 'left', padding: '10px 16px',
@@ -1333,7 +1386,7 @@ export default function CrmPage() {
               </thead>
               <tbody>
                 {filtered.map((card) => (
-                  <ListRow key={card.id} card={card} onSelect={() => setSelectedCard(card)} />
+                  <ListRow key={card.id} card={card} selected={selectedIds.has(card.id)} onSelect={() => setSelectedCard(card)} onToggle={(e) => toggleSelect(card.id, e)} />
                 ))}
               </tbody>
             </table>
@@ -1418,6 +1471,21 @@ export default function CrmPage() {
                         >
                           {/* Score badge + name */}
                           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '6px', marginBottom: '6px' }}>
+                            <div
+                              onClick={(e) => toggleSelect(card.id, e)}
+                              style={{
+                                width: '14px', height: '14px', marginTop: '2px', flexShrink: 0, borderRadius: '3px', cursor: 'pointer',
+                                backgroundColor: selectedIds.has(card.id) ? '#3b82f6' : '#0d1929',
+                                border: `1px solid ${selectedIds.has(card.id) ? '#3b82f6' : '#1e3a5f'}`,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              }}
+                            >
+                              {selectedIds.has(card.id) && (
+                                <svg width={9} height={9} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                              )}
+                            </div>
                             <p style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: 700, lineHeight: 1.3, flex: 1, minWidth: 0 }}>
                               {lead.name}
                             </p>
@@ -1618,6 +1686,66 @@ export default function CrmPage() {
           </div>
         )}
       </div>
+
+      {/* ── Bulk action bar ── */}
+      {selectedIds.size > 0 && (
+        <div style={{
+          position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
+          zIndex: 200, backgroundColor: '#040d1a', border: '1px solid #3b82f6',
+          borderRadius: '14px', padding: '10px 16px',
+          display: 'flex', alignItems: 'center', gap: '10px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+          animation: 'slideInUp 0.2s ease-out',
+          flexWrap: 'wrap',
+        }}>
+          <span style={{ color: '#93c5fd', fontSize: '12px', fontWeight: 800, whiteSpace: 'nowrap' }}>
+            {selectedIds.size} selected
+          </span>
+          <div style={{ width: '1px', height: '16px', backgroundColor: '#1e293b' }} />
+          <span style={{ color: '#475569', fontSize: '11px', fontWeight: 700, whiteSpace: 'nowrap' }}>Move to:</span>
+          {COLUMNS.map((c) => (
+            <button
+              key={c.key}
+              onClick={() => bulkMove(c.key)}
+              style={{
+                backgroundColor: c.bg, border: `1px solid ${c.border}`, color: c.color,
+                borderRadius: '6px', padding: '4px 10px', fontSize: '11px', fontWeight: 700,
+                cursor: 'pointer', minHeight: 'unset',
+                display: 'flex', alignItems: 'center', gap: '3px',
+              }}
+            >
+              <ColumnIcon status={c.key} size={9} /> {c.label}
+            </button>
+          ))}
+          <div style={{ width: '1px', height: '16px', backgroundColor: '#1e293b' }} />
+          <button
+            onClick={bulkDelete}
+            style={{
+              backgroundColor: '#450a0a', border: '1px solid #7f1d1d', color: '#fca5a5',
+              borderRadius: '6px', padding: '4px 10px', fontSize: '11px', fontWeight: 700,
+              cursor: 'pointer', minHeight: 'unset',
+              display: 'flex', alignItems: 'center', gap: '4px',
+            }}
+          >
+            <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+              <path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+            </svg>
+            Delete
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            style={{
+              background: 'none', border: '1px solid #1e293b', color: '#475569',
+              borderRadius: '6px', padding: '4px 8px', fontSize: '11px', fontWeight: 700,
+              cursor: 'pointer', minHeight: 'unset',
+            }}
+          >
+            Clear
+          </button>
+        </div>
+      )}
 
       {/* ── Detail drawer ── */}
       {selectedCard && (
