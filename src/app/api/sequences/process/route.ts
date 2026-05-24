@@ -3,6 +3,7 @@ import { Resend } from 'resend';
 import { getSupabase } from '@/lib/supabase';
 import { checkWarmup, logSend } from '@/lib/warmup';
 import { detectBodyLang, unsubscribeFooter } from '@/lib/emailFooter';
+import { fetchRepliedEmails } from '@/lib/imap';
 
 export const maxDuration = 60;
 
@@ -33,6 +34,9 @@ export async function POST() {
     if (error) throw new Error(error.message);
     if (!due || due.length === 0) return NextResponse.json({ ok: true, sent: 0, message: 'No sequences due' });
 
+    // Check inbox once for all leads before the send loop
+    const repliedEmails = await fetchRepliedEmails();
+
     let sent = 0;
     let skipped = 0;
     const results: Array<{ sequenceId: string; status: 'sent' | 'skipped' | 'error'; reason?: string }> = [];
@@ -42,6 +46,21 @@ export async function POST() {
       if (!lead?.email) {
         await supabase.from('lf_sequences').update({ status: 'skipped' }).eq('id', seq.id);
         results.push({ sequenceId: seq.id, status: 'skipped', reason: 'no email' });
+        skipped++;
+        continue;
+      }
+
+      // Skip if the lead has already replied — cancel all their pending sequences
+      if (repliedEmails.has(lead.email.toLowerCase())) {
+        await supabase.from('lf_sequences')
+          .update({ status: 'replied' })
+          .eq('lead_id', lead.id)
+          .eq('status', 'pending');
+        await supabase.from('lf_crm_cards')
+          .update({ status: 'replied' })
+          .eq('lead_id', lead.id)
+          .eq('status', 'contacted');
+        results.push({ sequenceId: seq.id, status: 'skipped', reason: 'replied' });
         skipped++;
         continue;
       }
