@@ -6,9 +6,9 @@ const GIF = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { leadId: string; step: string } },
+  { params }: { params: Promise<{ leadId: string; step: string }> },
 ) {
-  const { leadId, step } = params;
+  const { leadId, step } = await params;
   if (leadId && step) {
     try {
       await getSupabase()
