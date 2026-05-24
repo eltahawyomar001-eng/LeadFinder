@@ -866,6 +866,197 @@ function ProposalBuilder({ lead, valueEur }: { lead: LeadRow; valueEur: number |
   );
 }
 
+// ─── CSV Import Modal ─────────────────────────────────────────────────────────
+
+function parseCSV(text: string): { name: string; email: string; website?: string; country?: string; phone?: string }[] {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return [];
+  const header = lines[0].split(',').map((h) => h.trim().toLowerCase().replace(/['"]/g, ''));
+  const idx = { name: header.indexOf('name'), email: header.indexOf('email'), website: header.indexOf('website'), country: header.indexOf('country'), phone: header.indexOf('phone') };
+  if (idx.name === -1 || idx.email === -1) return [];
+  return lines.slice(1).map((line) => {
+    const cols = line.split(',').map((c) => c.trim().replace(/^["']|["']$/g, ''));
+    return {
+      name: cols[idx.name] ?? '',
+      email: cols[idx.email] ?? '',
+      website: idx.website >= 0 ? (cols[idx.website] || undefined) : undefined,
+      country: idx.country >= 0 ? (cols[idx.country] || undefined) : undefined,
+      phone: idx.phone >= 0 ? (cols[idx.phone] || undefined) : undefined,
+    };
+  }).filter((r) => r.name && r.email);
+}
+
+function ImportModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
+  const [csvText, setCsvText] = useState('');
+  const [preview, setPreview] = useState<ReturnType<typeof parseCSV>>([]);
+  const [importing, setImporting] = useState(false);
+  const [result, setResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
+
+  const handleParse = (text: string) => {
+    setCsvText(text);
+    setPreview(parseCSV(text));
+    setResult(null);
+  };
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => handleParse(ev.target?.result as string ?? '');
+    reader.readAsText(file);
+  };
+
+  const handleImport = async () => {
+    if (preview.length === 0) return;
+    setImporting(true);
+    const res = await fetch('/api/leads/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rows: preview }),
+    });
+    const data = await res.json();
+    setImporting(false);
+    if (res.ok) {
+      setResult(data);
+      onImported();
+    } else {
+      setResult({ imported: 0, skipped: preview.length, errors: [data.error ?? 'Import failed'] });
+    }
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 300,
+        backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)',
+        WebkitBackdropFilter: 'blur(6px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          backgroundColor: '#040d1a', border: '1px solid #1e293b',
+          borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '560px',
+          maxHeight: '90vh', overflowY: 'auto',
+          display: 'flex', flexDirection: 'column', gap: '18px',
+          animation: 'fadeInUp 0.2s ease-out',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h2 style={{ color: '#f1f5f9', fontSize: '16px', fontWeight: 800 }}>Import Leads from CSV</h2>
+          <button
+            onClick={onClose}
+            style={{ background: 'none', border: '1px solid #1e293b', color: '#475569', borderRadius: '8px', padding: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', minHeight: 'unset' }}
+          >
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div style={{ backgroundColor: '#0a1628', border: '1px solid #1e3a5f', borderRadius: '10px', padding: '12px' }}>
+          <p style={{ color: '#475569', fontSize: '11px', marginBottom: '4px' }}>Required columns (header row):</p>
+          <code style={{ color: '#60a5fa', fontSize: '11px', fontFamily: 'monospace' }}>name, email, website, country, phone</code>
+          <p style={{ color: '#334155', fontSize: '10px', marginTop: '4px' }}>Only name + email are required. Country defaults to <code style={{ color: '#64748b' }}>de</code>.</p>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', backgroundColor: '#0a1628', border: '2px dashed #1e3a5f', borderRadius: '10px', padding: '14px', justifyContent: 'center' }}>
+            <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <span style={{ color: '#60a5fa', fontSize: '13px', fontWeight: 700 }}>Choose CSV file</span>
+            <input type="file" accept=".csv,text/csv" onChange={handleFile} style={{ display: 'none' }} />
+          </label>
+          <p style={{ color: '#334155', fontSize: '11px', textAlign: 'center' }}>or paste CSV below</p>
+          <textarea
+            value={csvText}
+            onChange={(e) => handleParse(e.target.value)}
+            placeholder={'name,email,website,country\nAcme GmbH,info@acme.de,https://acme.de,de'}
+            rows={5}
+            style={{
+              width: '100%', backgroundColor: '#0a1628', border: '1px solid #1e293b',
+              borderRadius: '8px', padding: '10px 12px', color: '#e2e8f0',
+              fontSize: '12px', fontFamily: 'monospace', resize: 'vertical', lineHeight: 1.5,
+              boxSizing: 'border-box' as const,
+            }}
+          />
+        </div>
+
+        {preview.length > 0 && !result && (
+          <div>
+            <p style={{ color: '#475569', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
+              Preview — {preview.length} row{preview.length !== 1 ? 's' : ''} parsed
+            </p>
+            <div style={{ backgroundColor: '#050d1a', border: '1px solid #0f172a', borderRadius: '10px', overflow: 'hidden' }}>
+              {preview.slice(0, 5).map((row, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', borderBottom: i < Math.min(4, preview.length - 1) ? '1px solid #0f172a' : 'none' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ color: '#e2e8f0', fontSize: '12px', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</p>
+                    <p style={{ color: '#475569', fontSize: '10px', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.email}</p>
+                  </div>
+                  {row.country && (
+                    <span style={{ color: '#334155', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', flexShrink: 0 }}>{row.country}</span>
+                  )}
+                </div>
+              ))}
+              {preview.length > 5 && (
+                <div style={{ padding: '8px 12px', color: '#334155', fontSize: '11px' }}>+{preview.length - 5} more rows…</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {result && (
+          <div style={{
+            backgroundColor: result.imported > 0 ? '#052e16' : '#450a0a',
+            border: `1px solid ${result.imported > 0 ? '#166534' : '#7f1d1d'}`,
+            borderRadius: '10px', padding: '12px',
+          }}>
+            <p style={{ color: result.imported > 0 ? '#4ade80' : '#fca5a5', fontSize: '13px', fontWeight: 800, marginBottom: '4px' }}>
+              {result.imported} imported, {result.skipped} skipped
+            </p>
+            {result.errors.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '6px' }}>
+                {result.errors.map((e, i) => (
+                  <p key={i} style={{ color: '#f87171', fontSize: '11px', fontFamily: 'monospace' }}>{e}</p>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {!result && (
+          <button
+            onClick={handleImport}
+            disabled={importing || preview.length === 0}
+            style={{
+              backgroundColor: importing || preview.length === 0 ? '#0a1628' : '#1e3a5f',
+              border: `1px solid ${importing || preview.length === 0 ? '#1e293b' : '#3b82f6'}`,
+              color: importing || preview.length === 0 ? '#334155' : '#93c5fd',
+              borderRadius: '10px', padding: '12px', fontSize: '14px', fontWeight: 700,
+              cursor: importing || preview.length === 0 ? 'not-allowed' : 'pointer',
+              minHeight: 'unset', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+              transition: 'all 0.15s',
+            }}
+          >
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            {importing ? `Importing ${preview.length} leads…` : preview.length > 0 ? `Import ${preview.length} lead${preview.length !== 1 ? 's' : ''}` : 'Import'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── List View Row ────────────────────────────────────────────────────────────
 
 function ListRow({ card, selected, onSelect, onToggle }: {
@@ -976,6 +1167,7 @@ export default function CrmPage() {
   const [filterStatus, setFilterStatus] = useState<CardStatus | 'all'>('all');
   const [campaignStats, setCampaignStats] = useState<CampaignStats | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showImport, setShowImport] = useState(false);
 
   const load = useCallback(async () => {
     const [cardsRes, warmupRes] = await Promise.all([
@@ -1186,6 +1378,23 @@ export default function CrmPage() {
               </button>
             ))}
           </div>
+
+          <button
+            onClick={() => setShowImport(true)}
+            title="Import CSV"
+            style={{
+              background: 'none', border: '1px solid #1e3a5f', color: '#60a5fa',
+              borderRadius: '8px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer', minHeight: 'unset',
+              display: 'flex', alignItems: 'center', gap: '4px',
+            }}
+          >
+            <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            Import
+          </button>
 
           <button onClick={load} style={{
             background: 'none', border: '1px solid #1e293b', color: '#475569',
@@ -1686,6 +1895,11 @@ export default function CrmPage() {
           </div>
         )}
       </div>
+
+      {/* ── Import modal ── */}
+      {showImport && (
+        <ImportModal onClose={() => setShowImport(false)} onImported={() => { load(); setShowImport(false); }} />
+      )}
 
       {/* ── Bulk action bar ── */}
       {selectedIds.size > 0 && (
