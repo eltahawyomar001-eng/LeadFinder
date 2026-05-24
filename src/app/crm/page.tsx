@@ -304,6 +304,8 @@ function DetailDrawer({
   const [deleting, setDeleting] = useState(false);
   const [unsub, setUnsub] = useState(false);
   const [restarting, setRestarting] = useState(false);
+  const [templates, setTemplates] = useState<{ id: string; name: string; subject: string; body: string }[] | null>(null);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const col = COLUMNS.find((c) => c.key === card.status)!;
   const sentCount = (card.lf_sequences ?? []).filter((s) => s.status === 'sent').length;
   const pendingCount = (card.lf_sequences ?? []).filter((s) => s.status === 'pending').length;
@@ -640,6 +642,66 @@ function DetailDrawer({
               <p style={{ color: '#475569', fontSize: '12px', lineHeight: 1.5 }}>
                 Send a one-off message to <span style={{ color: '#60a5fa', fontFamily: 'monospace' }}>{lead.email}</span>. It will be logged as a manual send and appended to notes.
               </p>
+              {/* Template loader */}
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={async () => {
+                    if (!templates) {
+                      const res = await fetch('/api/templates');
+                      const { templates: t } = await res.json();
+                      setTemplates(t ?? []);
+                    }
+                    setShowTemplatePicker((p) => !p);
+                  }}
+                  style={{
+                    background: 'none', border: '1px solid #1e293b', color: '#475569',
+                    borderRadius: '7px', padding: '5px 10px', fontSize: '11px', fontWeight: 700,
+                    cursor: 'pointer', minHeight: 'unset',
+                    display: 'flex', alignItems: 'center', gap: '4px',
+                  }}
+                >
+                  <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                    <polyline points="22,6 12,13 2,6"/>
+                  </svg>
+                  Load template
+                </button>
+                {showTemplatePicker && templates && (
+                  <div style={{
+                    position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 50,
+                    backgroundColor: '#040d1a', border: '1px solid #1e293b', borderRadius: '10px',
+                    minWidth: '280px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                    overflow: 'hidden',
+                  }}>
+                    {templates.length === 0 ? (
+                      <div style={{ padding: '14px 16px', color: '#334155', fontSize: '12px' }}>
+                        No templates yet.{' '}
+                        <a href="/templates" target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'none' }}>Create one</a>
+                      </div>
+                    ) : templates.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => {
+                          setMsgSubject(t.subject);
+                          setMsgBody(t.body);
+                          setShowTemplatePicker(false);
+                        }}
+                        style={{
+                          width: '100%', textAlign: 'left', background: 'none',
+                          border: 'none', borderBottom: '1px solid #0f172a',
+                          padding: '10px 16px', cursor: 'pointer', minHeight: 'unset',
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0a1628')}
+                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                      >
+                        <p style={{ color: '#e2e8f0', fontSize: '12px', fontWeight: 700, marginBottom: '2px' }}>{t.name}</p>
+                        {t.subject && <p style={{ color: '#475569', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.subject}</p>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div>
                 <p style={{ color: '#475569', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>Subject</p>
                 <input
@@ -1378,6 +1440,22 @@ export default function CrmPage() {
               </button>
             ))}
           </div>
+
+          <Link
+            href="/templates"
+            title="Email Templates"
+            style={{
+              background: 'none', border: '1px solid #1e293b', color: '#475569',
+              borderRadius: '8px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer', minHeight: 'unset',
+              display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none',
+            }}
+          >
+            <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+              <polyline points="22,6 12,13 2,6"/>
+            </svg>
+            Templates
+          </Link>
 
           <button
             onClick={() => setShowImport(true)}
